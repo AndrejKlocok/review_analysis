@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from discussion import Files, Review, Product, Aspect, AspectCategory
 
 
-def get_source_code(infile, product: Product, product_latest_actualization):
+def parse_page(infile, product: Product, product_latest_actualization):
     actualization = False
     latest_review = None
     # pokud se aktualne zpracovavany produkt jiz nachazi ve vystupnim souboru
@@ -150,6 +150,7 @@ def get_urls(json_data, string_to_append=""):
             print("[actualize_reviews] Error " + str(e))
 
     return categories_urls
+
 
 def actualize_reviews(json_data, obj_product_dict, fast:bool):
     '''Aktualizuje soubor stazenych recenzi z heureky.. Staci skript spustit s parametrem aktualize="nazev_souboru"'''
@@ -399,7 +400,7 @@ def task(category: str, args):
                         actualization = True
 
                     # volani funkce pro zpracovani stranek.. vraci seznam vsech recenzi
-                    get_source_code(infile, product, product_latest_actualization)
+                    parse_page(infile, product, product_latest_actualization)
 
                     # pokud se provadi aktualizace
                     if actualization and product.get_name() in json_data:
@@ -471,7 +472,6 @@ def main():
         start = time.time()
         task(category, args)
         print(time.time() - start)
-
 
     if args.actualize:
         # zapis datumu aktualizace

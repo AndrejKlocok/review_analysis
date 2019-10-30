@@ -25,6 +25,7 @@ month_mapper = {
     "rijna": "October",
 }
 
+
 class Files:
     def __init__(self, category):
         self.category = category
@@ -35,6 +36,8 @@ class Files:
         self.backup_name = self.category + "_backup.txt"
         self.actualized_name = self.category + "_actualized.txt"
         self.log_name = self.category + "_log.txt"
+        self.aspect_name = self.category + "_aspects.txt"
+        self.seed_aspect_name = self.category + "_seed.txt"
 
     def __open(self, mode: str):
         self.reviews = open(self.reviews_name, mode)
@@ -61,6 +64,15 @@ class Files:
             for line in file:
                 o = json.loads(line[:-1])
                 d[o["name"]] = o
+
+        return d
+
+    def get_aspects(self) -> dict:
+        d = {}
+        with open(self.aspect_name, "r") as file:
+            for line in file:
+                o = json.loads(line[:-1])
+                d[o["name"]] = AspectCategory.dict_to_aspect_category(o)
 
         return d
 
@@ -204,9 +216,20 @@ class AspectCategory:
         self.category = category
         self.url = url
         self.aspects = []
+        self.aspects_dict = {}
 
     def add_aspect(self, aspect):
         self.aspects.append(aspect)
+
+    @staticmethod
+    def dict_to_aspect_category(d):
+        aspect_category = AspectCategory(d["name"], d["category"], d["url"])
+        for a in d["Aspects"]:
+            aspect = Aspect(a["name"])
+            for v in a["value_list"]:
+                aspect.add_value(v)
+            aspect_category.add_aspect(aspect)
+        return aspect_category
 
     def __str__(self):
         return json.dumps({

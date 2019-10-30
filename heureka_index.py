@@ -1,5 +1,3 @@
-# Daniel Bambusek
-# xbambu04@stud.fit.vutbr.cz
 # KNOT - discussions_download
 import argparse
 import time

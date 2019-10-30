@@ -327,6 +327,7 @@ def parse(file:str):
     file = file.split("/")[-1].split("_")[0]
     stats.log(file)
 
+
 def parse_actualized_data(path):
     categories = [
         'Elektronika',
