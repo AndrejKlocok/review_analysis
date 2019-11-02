@@ -478,6 +478,7 @@ def main():
         with open("actualization_dates", "a") as act_dates:
             act_dates.write(date.today().strftime("%d. %B %Y").lstrip("0") + "\n")
 
+
 if __name__ == '__main__':
     start = time.time()
     main()

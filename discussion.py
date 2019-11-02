@@ -38,6 +38,7 @@ class Files:
         self.log_name = self.category + "_log.txt"
         self.aspect_name = self.category + "_aspects.txt"
         self.seed_aspect_name = self.category + "_seed.txt"
+        self.embedings_name = self.category + "_embeddings.txt"
 
     def __open(self, mode: str):
         self.reviews = open(self.reviews_name, mode)

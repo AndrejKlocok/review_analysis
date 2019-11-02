@@ -5,6 +5,8 @@ from external.czech_stemmer import cz_stem
 import re
 from re import finditer
 import json
+from enum import Enum
+from unidecode import unidecode
 
 
 class Preproces:
@@ -12,15 +14,15 @@ class Preproces:
         self.smiles = {}
         self.regex_str = r'(:-.|:.)'
         self.regex = re.compile(self.regex_str)
-        self.emoji_dict = {":-)" : "šťastný", ":)" : "šťastný",
+        self.emoji_dict = {":-)": "šťastný", ":)": "šťastný",
                            ":-D": "velmi šťastný", ":D": "velmi šťastný",
-                           ":-(" : "smutný", ":(" : "smutný",
+                           ":-(": "smutný", ":(": "smutný",
                            ":-*": "polibek", ":*": "polibek",
-                           ":-O": "překvapený", ":O": "překvapený", ":o": "překvapený", ":0":"překvapený",
-                           ":3" : "kočičí tvář",
-                           ":/" : "lehce naštvaný", ":-/" : "lehce naštvaný",
+                           ":-O": "překvapený", ":O": "překvapený", ":o": "překvapený", ":0": "překvapený",
+                           ":3": "kočičí tvář",
+                           ":/": "lehce naštvaný", ":-/": "lehce naštvaný",
                            ":-P": "vyčnívající jazyk", ":P": "vyčnívající jazyk", ":p": "vyčnívající jazyk",
-                           ":c" : "velmi smutné", ":C" : "velmi smutné",
+                           ":c": "velmi smutné", ":C": "velmi smutné",
                            }
 
     def find_emoji(self, text):
@@ -44,6 +46,7 @@ class Preproces:
 
         return text
 
+
 class WordPos:
     def __init__(self, lemma, tag):
         self.lemma = lemma
@@ -53,6 +56,12 @@ class WordPos:
         return json.dumps(self.__dict__, ensure_ascii=False).encode('utf8').decode()
 
 
+class RevEnum(Enum):
+    pos = 1
+    con = 2
+    sum = 3
+
+
 class MorphoTagger:
     def __init__(self):
         self.tagger_path = None
@@ -60,6 +69,8 @@ class MorphoTagger:
         self.tokenizer = None
         self.flexible = ['A', 'D', 'N', 'P', 'V']
         self.preprocesor = Preproces()
+        self.pos_wp = WordPos("pozitivn", "AA")
+        self.neg_wp = WordPos("negativn", "AA")
 
     def load_tagger(self, path):
         self.tagger = Tagger.load(path)
@@ -76,6 +87,9 @@ class MorphoTagger:
         forms = Forms()
         sentences = []
 
+        # remove diacritic
+        text = unidecode(text)
+
         # replace smileys
         text = self.preprocesor.replace_emoji(text)
 
@@ -91,18 +105,79 @@ class MorphoTagger:
                 lemma = lemmas[i].lemma
                 tag = lemmas[i].tag
 
+                # remove diacritic
+                lemma = unidecode(lemma)
+                # eng flag
+                eng_word = False
+
+                # '-' is not boundary token
+                # boundary token
+                if tag[0] == "Z" and lemma != "-":
+                    sentences.append(sentence)
+                    sentence = []
                 # we want to work with flexible POS, thus we dont need stop words
                 if tag[0] not in self.flexible:
                     continue
 
+                # dont stem english words
+                if lemma.find("angl") != -1:
+                    m = re.search(r'angl\._\w*', lemma)
+                    if m:
+                        lemma = m.group().split("_")[1]
+                    else:
+                        eng_word = True
+
                 # remove additional informations
-                lemma =  lemma.split("_")[0]
-                lemma = re.sub(r'-\d*$', '',lemma)
+                lemma = lemma.split("_")[0]
+                lemma = re.sub(r'-\d*$', '', lemma)
 
                 # Stem
-                if stem:
+                if stem and not eng_word:
                     lemma = cz_stem(lemma)
                 sentence.append(WordPos(lemma, tag))
             sentences.append(sentence)
 
         return sentences
+
+    def parse_review(self, review: dict, stem=True):
+        pos_stem = self.pos_tagging(". ".join(review["pros"]), stem)
+        i = 0
+        for sentence in pos_stem:
+            found_sentiment = False
+            for stem in sentence:
+                if stem.tag[0] == 'A':
+                    found_sentiment = True
+                    break
+            if not found_sentiment:
+                pos_stem[i] = [self.pos_wp] + pos_stem[i]
+            i += 1
+
+        con_stem = self.pos_tagging(". ".join(review["cons"]), stem)
+        i = 0
+        for sentence in con_stem:
+            found_sentiment = False
+            for stem in sentence:
+                if stem.tag[0] == 'A':
+                    found_sentiment = True
+                    break
+            if not found_sentiment:
+                con_stem[i] = [self.neg_wp] + con_stem[i]
+
+        sum_stem = self.pos_tagging(review["summary"], stem)
+
+        return pos_stem + con_stem + sum_stem
+
+
+def main():
+    tagger = MorphoTagger()
+    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+
+    s = tagger.pos_tagging("sci-fi gold veselí")
+    for sentence in s:
+        for wp in sentence:
+            print(wp)
+    pass
+
+
+if __name__ == '__main__':
+    main()
