@@ -12,6 +12,7 @@ from unidecode import unidecode
 class Preproces:
     def __init__(self):
         self.smiles = {}
+        self.stop_words = [unidecode(w) for w in get_stop_words('cz')]
         self.regex_str = r'(:-.|:.)'
         self.regex = re.compile(self.regex_str)
         self.emoji_dict = {":-)": "šťastný", ":)": "šťastný",
@@ -24,6 +25,7 @@ class Preproces:
                            ":-P": "vyčnívající jazyk", ":P": "vyčnívající jazyk", ":p": "vyčnívající jazyk",
                            ":c": "velmi smutné", ":C": "velmi smutné",
                            }
+        self.wrong_categories = ["tras", "putov", "portal"]
 
     def find_emoji(self, text):
         for emoji in re.findall(self.regex_str, text):
@@ -67,7 +69,7 @@ class MorphoTagger:
         self.tagger_path = None
         self.tagger = None
         self.tokenizer = None
-        self.flexible = ['A', 'D', 'N', 'P', 'V']
+        self.flexible = ['A', 'D', 'N', 'P', 'V', 'C']
         self.preprocesor = Preproces()
         self.pos_wp = WordPos("pozitivn", "AA")
         self.neg_wp = WordPos("negativn", "AA")
@@ -89,6 +91,9 @@ class MorphoTagger:
 
         # remove diacritic
         text = unidecode(text)
+
+        # remove stop words
+        text = " ".join([w if w not in self.preprocesor.stop_words else "" for w in text.split()])
 
         # replace smileys
         text = self.preprocesor.replace_emoji(text)
@@ -121,11 +126,11 @@ class MorphoTagger:
 
                 # dont stem english words
                 if lemma.find("angl") != -1:
-                    m = re.search(r'angl\._\w*', lemma)
-                    if m:
-                        lemma = m.group().split("_")[1]
-                    else:
-                        eng_word = True
+                    # m = re.search(r'angl\._\w*', lemma)
+                    # if m:
+                    #    lemma = m.group().split("_")[1]
+                    # else:
+                    eng_word = True
 
                 # remove additional informations
                 lemma = lemma.split("_")[0]
@@ -172,7 +177,7 @@ def main():
     tagger = MorphoTagger()
     tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
-    s = tagger.pos_tagging("sci-fi gold veselí")
+    s = tagger.pos_tagging("games")
     for sentence in s:
         for wp in sentence:
             print(wp)

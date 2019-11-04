@@ -1,6 +1,7 @@
 import json
 
 from discussion import Files, Review, Product, Aspect, AspectCategory
+from morpho_tagger import MorphoTagger
 
 month_mapper = {
     "ledna": "January",
@@ -45,27 +46,48 @@ def fix(category):
                 r["date"] = map_month_to_english(r["date"])
             f.reviews.write(json.dumps(product_json, ensure_ascii=False).encode('utf8').decode() + "\n")
 
+def task(category):
+    f = Files(category)
+    seed_aspects = f.get_aspects()
+    tagger = MorphoTagger()
+    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+
+
+    with open("aspect_log.txt", "w") as log:
+        for _, aspect_category in seed_aspects.items():
+            for aspect in aspect_category.aspects:
+                words = tagger.pos_tagging(aspect.name)
+                name_pos = " ".join(wb.lemma for wb in words[0])
+                if name_pos in wrong_categories:
+                    log.write(aspect_category.name +" " + name_pos+"\n")
+                    for val in aspect.value_list:
+                        if len(val.split()) == 1:
+                            val_str = " ".join(wb.lemma for wb in tagger.pos_tagging(val)[0])
+                            log.write("\t" + val_str + " " + str(val) +"\n")
+
+
+
 
 def main():
     categories = [
-        'Elektronika',
-        'Bile zbozi',
-        'Dum a zahrada',
-        'Chovatelstvi',
-        'Auto-moto',
-        'Detske zbozi',
-        'Obleceni a moda',
+        #'Elektronika',
+        #'Bile zbozi',
+        #'Dum a zahrada',
+        #'Chovatelstvi',
+        #'Auto-moto',
+        #'Detske zbozi',
+        #'Obleceni a moda',
         'Filmy, knihy, hry',
-        'Kosmetika a zdravi',
-        'Sport',
-        'Hobby',
-        'Jidlo a napoje',
-        'Stavebniny',
-        'Sexualni a eroticke pomucky'
+        #'Kosmetika a zdravi',
+        #'Sport',
+        #'Hobby',
+        #'Jidlo a napoje',
+        #'Stavebniny',
+        #'Sexualni a eroticke pomucky'
     ]
 
     for category in categories:
-        fix(category)
+        task(category)
 
 
 if __name__ == '__main__':

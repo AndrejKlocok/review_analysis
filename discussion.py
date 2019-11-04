@@ -37,6 +37,7 @@ class Files:
         self.actualized_name = self.category + "_actualized.txt"
         self.log_name = self.category + "_log.txt"
         self.aspect_name = self.category + "_aspects.txt"
+        self.aspect_pos_name = self.category + "_aspects_pos.txt"
         self.seed_aspect_name = self.category + "_seed.txt"
         self.embedings_name = self.category + "_embeddings.txt"
 
@@ -68,9 +69,9 @@ class Files:
 
         return d
 
-    def get_aspects(self) -> dict:
+    def get_aspects(self, name) -> dict:
         d = {}
-        with open(self.aspect_name, "r") as file:
+        with open(name, "r") as file:
             for line in file:
                 o = json.loads(line[:-1])
                 d[o["name"]] = AspectCategory.dict_to_aspect_category(o)
@@ -210,6 +211,9 @@ class Aspect:
     def add_value(self, s):
         self.value_list.append(s)
 
+    def __str__(self):
+        return json.dumps(self.__dict__, ensure_ascii=False).encode('utf8').decode()
+
 
 class AspectCategory:
     def __init__(self, name, category, url):
@@ -225,12 +229,26 @@ class AspectCategory:
     @staticmethod
     def dict_to_aspect_category(d):
         aspect_category = AspectCategory(d["name"], d["category"], d["url"])
-        for a in d["Aspects"]:
-            aspect = Aspect(a["name"])
-            for v in a["value_list"]:
-                aspect.add_value(v)
-            aspect_category.add_aspect(aspect)
+
+        # we can have aspects or processed aspect dict with POS
+        if "Aspects" in d:
+            for a in d["Aspects"]:
+                aspect = Aspect(a["name"].lower())
+                for v in a["value_list"]:
+                    aspect.add_value(v.lower())
+                aspect_category.add_aspect(aspect)
+        elif "aspect_dict" in d:
+            aspect_category.aspects_dict = d["aspect_dict"]
+
         return aspect_category
+
+    def pos_str(self):
+        return json.dumps({
+            "name": self.name,
+            "category": self.category,
+            "url": self.url,
+            "aspect_dict": self.aspects_dict
+        }, ensure_ascii=False).encode('utf8').decode()
 
     def __str__(self):
         return json.dumps({

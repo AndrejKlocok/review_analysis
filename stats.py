@@ -1,4 +1,4 @@
-import  json
+import  json, time
 import statistics
 import argparse
 from datetime import datetime
@@ -328,23 +328,7 @@ def parse(file:str):
     stats.log(file)
 
 
-def parse_actualized_data(path):
-    categories = [
-        'Elektronika',
-        'Bile zbozi',
-        'Dum a zahrada',
-        'Chovatelstvi',
-        'Auto-moto',
-        'Detske zbozi',
-        'Obleceni a moda',
-        'Filmy, knihy, hry',
-        'Kosmetika a zdravi',
-        'Sport',
-        'Hobby',
-        'Jidlo a napoje',
-        'Stavebniny',
-        'Sexualni a eroticke pomucky'
-    ]
+def parse_actualized_data(path, categories):
     count_all = 0
     product_all = 0
     product_new_all = 0
@@ -379,22 +363,89 @@ def parse_actualized_data(path):
 
     print("Total new reviews: " + str(count_all) + ", affected products: "+str(product_all)+", new products: " +str(product_new_all) +", new product`s reviews: "+str(count_new_all))
 
+
+def histogram(path, categories):
+    for category in categories:
+        try:
+            cat_d = {}
+            print(category)
+            f = Files(category)
+            with open(path +"/" + f.reviews_name, "r") as file:
+                for line in file:
+                    product_d = json.loads(line[:-1])
+                    product_category = product_d["name"].split("(")[-1][:-1]
+                    revs = len(product_d["reviews"])
+                    if product_category not in cat_d:
+                        cat_d[product_category] = revs
+                    else:
+                        cat_d[product_category] += revs
+
+            print("category count " + str(len(cat_d.items())))
+            print("TOP 10 categories")
+            cat_l = [(k, cat_d[k]) for k in sorted(cat_d, key=cat_d.get, reverse=True)]
+            # print top 10
+            for i in range(0,10):
+                cat, count = cat_l[i]
+                print("* "+cat + ": "+str(count))
+
+            print("\n")
+
+            cat_numb = {}
+            i = 0
+            # just top 100 categories
+            for k, v in cat_l:
+                cat_numb[i] = v
+                i += 1
+                if i == 100:
+                    break
+
+            plt.title('[' + f.category + '] Histogram of reviews between categories')
+            plt.ylabel('review counts')
+            plt.xlabel('categories')
+            plt.bar(list(cat_numb.keys()), cat_numb.values(), color='g')
+            plt.savefig("../statistics/"+f.category +'_hist.png')
+            plt.clf()
+
+        except Exception as e:
+            print("[histogram-" + category + "] Error: " +str(e))
+
 def main():
     parser = argparse.ArgumentParser(description="Compute statistics")
-    #parser.add_argument("-o", action="store_true", help="Old data format")
-    parser.add_argument("-a", action="store_true", help="Statistics from actualized data")
+    #parser.add_argument("-old", action="store_true", help="Old data format")
+    parser.add_argument("-actualize", action="store_true", help="Statistics from actualized data")
+    parser.add_argument("-histogram", action="store_true", help="Create histogram of count of rev for each category")
+
     requiredNamed = parser.add_argument_group('required named arguments')
     requiredNamed.add_argument('-path',  help='Path to the database', required=True)
     args = parser.parse_args()
 
-    if args.a:
-        parse_actualized_data(args.path)
-    #if args.o:
-    #    parse_old_data(args.f)
-    #elif args.a:
-    #    parse_actualized_data(args.f)
-    #else:
-    #    parse(args.f)
+    categories = [
+        'Elektronika',
+        'Bile zbozi',
+        'Dum a zahrada',
+        'Chovatelstvi',
+        'Auto-moto',
+        'Detske zbozi',
+        'Obleceni a moda',
+        'Filmy, knihy, hry',
+        'Kosmetika a zdravi',
+        'Sport',
+        'Hobby',
+        'Jidlo a napoje',
+        'Stavebniny',
+        'Sexualni a eroticke pomucky'
+    ]
+
+    if args.actualize:
+        parse_actualized_data(args.path, categories)
+    elif args.histogram:
+        histogram(args.path, categories)
+    else:
+        parse(args.path)
+
+
 
 if __name__ == '__main__':
- main()
+    start = time.time()
+    main()
+    print(time.time() - start)

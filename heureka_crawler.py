@@ -9,7 +9,7 @@ from collections import OrderedDict
 from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from discussion import Files, Review, Product, Aspect, AspectCategory
-
+import re
 
 def parse_page(infile, product: Product, product_latest_actualization):
     actualization = False
@@ -254,7 +254,7 @@ def task_seed_aspect_extraction(category:str):
                     #print(url)
                     page = BeautifulSoup(urlopen(url), "lxml")
                     breadcrumbs = ""
-
+                    max_occurence = 0
                     # posledny je nazov produktu
                     for a in page.find(id="breadcrumbs").find_all("a"):
                         breadcrumbs += a.get_text() + " | "
@@ -263,6 +263,7 @@ def task_seed_aspect_extraction(category:str):
                     aspect_cat = AspectCategory(name, breadcrumbs, url)
                     filters = page.find(id="param-container").find_all(class_="filtr")
 
+                    # parse aspect and its values
                     for filter_element in filters:
                         aspect_name = filter_element.find("h3").get_text()
                         aspect = Aspect(aspect_name)
@@ -273,10 +274,27 @@ def task_seed_aspect_extraction(category:str):
                         if non_script:
                             #xml = BeautifulSoup(non_script, "lxml")
                             xml_li = non_script.find_all("li")
-
+                        val_list = []
                         for value in xml_li:
                             v = value.find("a").get_text()
-                            aspect.add_value(v)
+                            occurence = 0
+                            try:
+                                oc_str = value.find("span").get_text()
+                                oc_str = re.sub('[^0-9]','', oc_str)
+                                occurence = int(oc_str)
+
+                            except Exception as e:
+                                print(e)
+                                pass
+                            if occurence > max_occurence:
+                                max_occurence = occurence
+                            val_list.append( (v, occurence) )
+
+                        # we want just 1% of max value occurence in out aspect list
+                        delta = int (max_occurence * 0.01)
+                        for val, occurence in val_list:
+                            if occurence > delta:
+                                aspect.add_value(val)
 
                         aspect_cat.add_aspect(aspect)
                     aspect_file.write(str(aspect_cat)+"\n")
@@ -453,10 +471,10 @@ def main():
         #'Bile zbozi',
         #'Dum a zahrada',
         #'Chovatelstvi',
-        'Auto-moto',
+        #'Auto-moto',
         #'Detske zbozi',
         #'Obleceni a moda',
-        #'Filmy, knihy, hry',
+        'Filmy, knihy, hry',
         #'Kosmetika a zdravi',
         #'Sport',
         #'Hobby',
