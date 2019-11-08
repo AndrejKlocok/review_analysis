@@ -5,7 +5,7 @@ from datetime import datetime
 from dateutil import parser
 from matplotlib import pyplot as plt
 from matplotlib import style
-from discussion import Files
+from models.discussion import Files
 
 class TimeData:
     def __init__(self, sentiment:float):

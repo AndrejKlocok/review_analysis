@@ -1,6 +1,6 @@
 import argparse
 
-from discussion import Files, AspectCategory, Aspect
+from models.discussion import Files
 import json, time
 
 

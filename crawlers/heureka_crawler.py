@@ -5,10 +5,8 @@ import sys
 import argparse
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
-from collections import OrderedDict
-from datetime import date, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from discussion import Files, Review, Product, Aspect, AspectCategory
+from datetime import date
+from models.discussion import Files, Review, Product, Aspect, AspectCategory
 import re
 
 def parse_page(infile, product: Product, product_latest_actualization):

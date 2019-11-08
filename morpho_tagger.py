@@ -9,21 +9,21 @@ from enum import Enum
 from unidecode import unidecode
 
 
-class Preproces:
+class Preprocess:
     def __init__(self):
         self.smiles = {}
         self.stop_words = [unidecode(w) for w in get_stop_words('cz')]
         self.regex_str = r'(:-.|:.)'
         self.regex = re.compile(self.regex_str)
-        self.emoji_dict = {":-)": "šťastný", ":)": "šťastný",
-                           ":-D": "velmi šťastný", ":D": "velmi šťastný",
-                           ":-(": "smutný", ":(": "smutný",
-                           ":-*": "polibek", ":*": "polibek",
-                           ":-O": "překvapený", ":O": "překvapený", ":o": "překvapený", ":0": "překvapený",
-                           ":3": "kočičí tvář",
-                           ":/": "lehce naštvaný", ":-/": "lehce naštvaný",
-                           ":-P": "vyčnívající jazyk", ":P": "vyčnívající jazyk", ":p": "vyčnívající jazyk",
-                           ":c": "velmi smutné", ":C": "velmi smutné",
+        self.emoji_dict = {":-)": "šťastný", ":)": "šťastná_tvář",
+                           ":-D": "velmi_šťastná_tvář", ":D": "velmi_šťastná_tvář",
+                           ":-(": "smutný", ":(": "smutná_tvář",
+                           ":-*": "líbající_tvář", ":*": "líbající_tvář",
+                           ":-O": "překvapená_tvář", ":O": "překvapená_tvář", ":o": "překvapená_tvář", ":0": "překvapená_tvář",
+                           ":3": "kočičí_tvář",
+                           ":/": "lehce_naštvaná_tvář", ":-/": "lehce_naštvaná_tvář",
+                           ":-P": "vyčnívající_jazyk", ":P": "vyčnívající_jazyk", ":p": "vyčnívající_jazyk",
+                           ":c": "velmi_smutná_tvář", ":C": "velmi_smutná_tvář",
                            }
         self.wrong_categories = ["tras", "putov", "portal"]
 
@@ -70,7 +70,7 @@ class MorphoTagger:
         self.tagger = None
         self.tokenizer = None
         self.flexible = ['A', 'D', 'N', 'P', 'V', 'C']
-        self.preprocesor = Preproces()
+        self.preprocesor = Preprocess()
         self.pos_wp = WordPos("pozitivn", "AA")
         self.neg_wp = WordPos("negativn", "AA")
 
@@ -120,9 +120,10 @@ class MorphoTagger:
                 if tag[0] == "Z" and lemma != "-":
                     sentences.append(sentence)
                     sentence = []
-                # we want to work with flexible POS, thus we dont need stop words
-                if tag[0] not in self.flexible:
                     continue
+                # we want to work with flexible POS, thus we dont need stop words
+                #if tag[0] not in self.flexible:
+                #    continue
 
                 # dont stem english words
                 if lemma.find("angl") != -1:

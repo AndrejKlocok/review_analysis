@@ -1,7 +1,9 @@
 import json
+from datetime import datetime
 
-from discussion import Files, Review, Product, Aspect, AspectCategory
+from models.discussion import Files
 from morpho_tagger import MorphoTagger
+from elastic_connector import Connector
 
 month_mapper = {
     "ledna": "January",
@@ -46,12 +48,13 @@ def fix(category):
                 r["date"] = map_month_to_english(r["date"])
             f.reviews.write(json.dumps(product_json, ensure_ascii=False).encode('utf8').decode() + "\n")
 
-def task(category):
+
+def morpho(category):
     f = Files(category)
     seed_aspects = f.get_aspects()
     tagger = MorphoTagger()
     tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
-
+    wrong_categories = []
 
     with open("aspect_log.txt", "w") as log:
         for _, aspect_category in seed_aspects.items():
@@ -59,36 +62,82 @@ def task(category):
                 words = tagger.pos_tagging(aspect.name)
                 name_pos = " ".join(wb.lemma for wb in words[0])
                 if name_pos in wrong_categories:
-                    log.write(aspect_category.name +" " + name_pos+"\n")
+                    log.write(aspect_category.name + " " + name_pos + "\n")
                     for val in aspect.value_list:
                         if len(val.split()) == 1:
                             val_str = " ".join(wb.lemma for wb in tagger.pos_tagging(val)[0])
-                            log.write("\t" + val_str + " " + str(val) +"\n")
+                            log.write("\t" + val_str + " " + str(val) + "\n")
 
 
+def create_domains():
+    from elasticsearch import Elasticsearch
+
+    es = Elasticsearch()
+    indexes = {
+        'Elektronika': 'elektronika',
+        'Bile zbozi': 'bile_zbozi',
+        'Dum a zahrada': 'dum_a_zahrada',
+        'Chovatelstvi': 'chovatelstvi',
+        'Auto-moto': 'auto-moto',
+        'Detske zbozi': 'detske_zbozi',
+        'Obleceni a moda': 'obleceni_a_moda',
+        'Filmy, knihy, hry': 'filmy_knihy_hry',
+        'Kosmetika a zdravi': 'kosmetika_a_zdravi',
+        'Sport': 'sport',
+        'Hobby': 'hobby',
+        'Jidlo a napoje': 'jidlo_a_napoje',
+        'Stavebniny': 'stavebniny',
+        'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
+        "product" : "product"
+
+    }
+    doc = []
+
+    for k, v in indexes.items():
+        d = {
+            "name": k,
+            "domain": v
+        }
+        res = es.index(index="domain", doc_type='doc', body=d)
+        print(res['result'])
+
+    es.indices.refresh(index="domain")
 
 
 def main():
-    categories = [
-        #'Elektronika',
-        #'Bile zbozi',
-        #'Dum a zahrada',
-        #'Chovatelstvi',
-        #'Auto-moto',
-        #'Detske zbozi',
-        #'Obleceni a moda',
-        'Filmy, knihy, hry',
-        #'Kosmetika a zdravi',
-        #'Sport',
-        #'Hobby',
-        #'Jidlo a napoje',
-        #'Stavebniny',
-        #'Sexualni a eroticke pomucky'
-    ]
+    con = Connector()
 
-    for category in categories:
-        task(category)
+    #doc = {
+    #    'author': 'kimchy',
+    #    'text': 'Elasticsearch: cool. bonsai cool.',
+    #    'timestamp': datetime.now(),
+    #}
+    #res = es.index(index="test", doc_type='test', id=1, body=doc)
+    #print(res['result'])
 
+    #res = es.index(index="bile_zbozi", doc_type='doc', body=doc)
+    #con.es.indices.refresh(index="domain")
+    #res = es.search(index="config", body={"query": {"match": {
+
+    #    'name': {'query': 'Bile zbozi', "operator" : "and"}
+    #}}})
+
+    res = con.get_reviews_from_subcategory('Bile zbozi', 'vysavace')
+    #print(res[:5])
+    print(len(res))
+    #res = con.es.search(index="product", body={"query":{"match_all" : {}}})
+    #print(res['result'])
+    #indexes = { hit["_source"]["name"]:hit["_source"]["index"] for hit in res['hits']['hits']}
+
+    #print(indexes)
+    #res = con.get('domain', 1)
+    #print("Got %d Hits:" % res['hits']['total']['value'])
+    #for hit in res['hits']['hits']:
+    #    print(hit["_source"])
+
+    #es.indices.delete(index='bile_zbozi', ignore=[400, 404])
+    #es.indices.delete(index='product', ignore=[400, 404])
+    #es.indices.delete(index='domain', ignore=[400, 404])
 
 if __name__ == '__main__':
     main()

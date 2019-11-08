@@ -1,4 +1,4 @@
-from discussion import Files, AspectCategory, Aspect
+from models.discussion import Files, Aspect
 from morpho_tagger import MorphoTagger
 
 import json
