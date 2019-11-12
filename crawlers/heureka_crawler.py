@@ -465,20 +465,20 @@ def main():
 
     args = parser.parse_args()
     categories = [
-        #'Elektronika',
-        #'Bile zbozi',
-        #'Dum a zahrada',
-        #'Chovatelstvi',
-        #'Auto-moto',
-        #'Detske zbozi',
-        #'Obleceni a moda',
+        'Elektronika',
+        'Bile zbozi',
+        'Dum a zahrada',
+        'Chovatelstvi',
+        'Auto-moto',
+        'Detske zbozi',
+        'Obleceni a moda',
         'Filmy, knihy, hry',
-        #'Kosmetika a zdravi',
-        #'Sport',
-        #'Hobby',
-        #'Jidlo a napoje',
-        #'Stavebniny',
-        #'Sexualni a eroticke pomucky'
+        'Kosmetika a zdravi',
+        'Sport',
+        'Hobby',
+        'Jidlo a napoje',
+        'Stavebniny',
+        'Sexualni a eroticke pomucky'
     ]
     #with ThreadPoolExecutor(max_workers=1) as executor:
     #    future_to_stuff = [executor.submit(task, category, args) for category in categories]
