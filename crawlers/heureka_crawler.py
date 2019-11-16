@@ -9,6 +9,7 @@ from datetime import date
 from models.discussion import Files, Review, Product, Aspect, AspectCategory
 import re
 
+
 def parse_page(infile, product: Product, product_latest_actualization):
     actualization = False
     latest_review = None
@@ -106,6 +107,7 @@ def parse_review(rev)->Review:
         review.set_summary(review_text.p.get_text())
     
     return review
+
 
 def format_text(review_list, product: Product, actualization=False, latest_review=None):
     '''Zformatuje diskuzi a vysledek vypise do souboru/prikazove radky.
@@ -241,12 +243,12 @@ def actualize_reviews(json_data, obj_product_dict, fast:bool):
                 break
 
 
-def task_seed_aspect_extraction(category:str):
+def task_seed_aspect_extraction(category:str, path:str):
     try:
         f = Files(category)
         json_data = f.get_reviews()
         categories_urls = get_urls(json_data)
-        with open(category+"_aspects.txt", "w") as aspect_file:
+        with open(path + "/" + category+"_aspects.txt", "w") as aspect_file:
             for url in categories_urls:
                 try:
                     #print(url)
@@ -306,9 +308,9 @@ def task_seed_aspect_extraction(category:str):
         print("[task_seed_aspect_extraction] Error " + str(e), file=sys.stderr)
 
 
-def task_actualize(category:str, fast:bool):
+def task_actualize(category:str, fast:bool, path):
     try:
-        f = Files(category)
+        f = Files(path + "/" + category)
         json_data = f.get_reviews()
         # vrati slovnik aktualizovanych produktu
         # { "product_name":Product}
@@ -349,10 +351,10 @@ def task(category: str, args):
     # Bude sa aktualizovat
     if args.actualize:
         # always fast for now
-        task_actualize(category, True) #args.fast)
+        task_actualize(category, True, args.path) #args.fast)
         return
     elif args.aspect:
-        task_seed_aspect_extraction(category)
+        task_seed_aspect_extraction(category, args.path)
         return
 
     # dictionary pro mozny vyskyt produktu a jejich posledni aktualizace
@@ -361,7 +363,7 @@ def task(category: str, args):
     # slovnik pro data nactena ze souboru
     json_data = {}
 
-    f = Files(category)
+    f = Files(args.path  + "/" +  category)
 
     # pokud soubor existuje a je v nem neco
     if f.check_reviews():
@@ -462,6 +464,7 @@ def main():
     parser.add_argument("-actualize", action="store_true", help="Actualize reviews")
     # parser.add_argument("-fast", action="store_true", help="Actualize reviews, when review exists breaks searching for category")
     parser.add_argument("-aspect", action="store_true", help="Get aspects from category specification")
+    parser.add_argument("-path", help="Path to the dataset folder", required=True)
 
     args = parser.parse_args()
     categories = [

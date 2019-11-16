@@ -1,5 +1,7 @@
 *.txt
 external/*
 *.json
-__pycache__
+__pycache__*
 *_ex_*
+*_test_*
+*_results_*

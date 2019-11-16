@@ -1,3 +1,5 @@
+import argparse
+
 from ufal.morphodita import Tagger, Forms, TaggedLemmas, TokenRanges
 from stop_words import get_stop_words
 from external.czech_stemmer import cz_stem
@@ -175,14 +177,37 @@ class MorphoTagger:
 
 
 def main():
+    from termcolor import colored
+
+    parser = argparse.ArgumentParser(
+        description="Script morpho tagger")
+    #parser.add_argument('-file', '--file', help='Aspect file', required=True)
+    #parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
+    parser.add_argument('-w', '--words', help='Key words')
+    args = vars(parser.parse_args())
+
+    #file = open(args["file"], "a")
+
     tagger = MorphoTagger()
     tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
-    s = tagger.pos_tagging("games")
-    for sentence in s:
-        for wp in sentence:
-            print(wp)
-    pass
+    #aspect = {"name":args["name"], "lemma_list":[]}
+    #s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")
+    while True:
+        try:
+            query = input(colored('your query: ', 'green'))
+            s = tagger.pos_tagging(query)
+            for sentence in s:
+                for wp in sentence:
+                    print(wp.lemma)
+
+        except Exception as e:
+            print("[tagger] Exception: " + str(e))
+
+
+            #if wp.lemma not in aspect["lemma_list"]:
+                #aspect["lemma_list"].append(wp.lemma)
+    #file.write(str(aspect))
 
 
 if __name__ == '__main__':
