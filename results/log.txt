@@ -1,0 +1,16 @@
+# Vygenerovany dataset z kategorie vysavace
+vety o velkosti v intervalu 3-23 slov
+pozitivnych vet:  6601
+negativnych vet:  4968
+
+train.tsv: 8886
+dev.tsv: 371
+test.tsv: 2313
+
+eval_accuracy = 0.83827496
+eval_loss = 0.7079331
+global_step = 3331
+loss = 0.6985806
+
+
+Statistics for n: 2313 prediction: 0.7791

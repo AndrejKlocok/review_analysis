@@ -89,7 +89,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Scrip generates desired dataset from elastic db")
     parser.add_argument('-emb', '--embeddings', help='Generate dataset for embeddings with all sentences, 80-20', action='store_true')
-    parser.add_argument('-cls', '--classification', help='Generate dataset for sentiment classification +-, 80-20', action='store_true')
+    parser.add_argument('-cls', '--classification', help='Generate dataset for sentiment classification +-', action='store_true')
     parser.add_argument('-bert', '--bert', help='Use bert form', action='store_true')
 
     args = vars(parser.parse_args())
