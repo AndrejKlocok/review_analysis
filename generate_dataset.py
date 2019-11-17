@@ -39,7 +39,7 @@ class Generator:
     def __get_sentence(self, s: str, sentences: list, len_min, len_max, regex=r'[,.]'):
         l = re.split(regex, s)
         for sentence in l:
-            if sentence and len_min < len(sentence.split()) < len_max:
+            if sentence and len_min < len(sentence.split()) < len_max and sentence.split()[0].isalpha():
                 # file.write(sentence.strip().capitalize() + ".\n")
                 sentences.append(sentence.strip().capitalize() + ".\n")
 
@@ -63,7 +63,7 @@ def task_emb(generator: Generator):
         print("[task_emb] Exception: " + str(e))
 
 
-def task_cls(generator: Generator):
+def task_cls(generator: Generator, num_category=1, equal=False):
     try:
         generator.is_summary = False
         name = "dataset"
@@ -71,18 +71,28 @@ def task_cls(generator: Generator):
             name += "_bert"
 
         generator.is_con = False
-        sentences_pro = generator.get_sentences(1, True)
+        sentences_pro = generator.get_sentences(num_category, True)
         generator.is_con = True
         generator.is_pro = False
-        sentences_con = generator.get_sentences(1, True)
+        sentences_con = generator.get_sentences(num_category, True)
 
-        with open(name+"_pros.txt", "w") as f_pros:
+        if equal:
+            l_pro = len(sentences_pro)
+            l_con = len(sentences_con)
+            if l_pro > l_con:
+                sentences_pro = sentences_pro[:l_con]
+            elif l_pro < l_con:
+                sentences_con = sentences_pro[:l_pro]
+
+            assert (len(sentences_pro) == len(sentences_con)), "Same length"
+
+        with open(name+"_positive.txt", "w") as f_pros:
             [f_pros.write(s) for s in sentences_pro]
-        with open(name + "_cons.txt", "w") as f_cons:
+        with open(name + "_negative.txt", "w") as f_cons:
             [f_cons.write(s) for s in sentences_con]
 
     except Exception as e:
-        print("[task_emb] Exception: " + str(e))
+        print("[task_cls] Exception: " + str(e))
 
 
 def main():
@@ -90,7 +100,9 @@ def main():
         description="Scrip generates desired dataset from elastic db")
     parser.add_argument('-emb', '--embeddings', help='Generate dataset for embeddings with all sentences, 80-20', action='store_true')
     parser.add_argument('-cls', '--classification', help='Generate dataset for sentiment classification +-', action='store_true')
-    parser.add_argument('-bert', '--bert', help='Use bert form', action='store_true')
+    #parser.add_argument('-bert', '--bert', help='Use bert form', action='store_true')
+    parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=1)
+    parser.add_argument('-e', '--equal_dataset', help='Generate pos/neg equal size', action='store_true', default=False)
 
     args = vars(parser.parse_args())
 
@@ -122,7 +134,7 @@ def main():
     elif args['classification']:
         for category in categories:
             gen = Generator(category, con, args['bert'])
-            task_cls(gen)
+            task_cls(gen, args['num_category'], args['equal_dataset'])
 
     print(time.time() - start)
 
