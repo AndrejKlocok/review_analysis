@@ -360,14 +360,14 @@ def task(category: str, args):
     # dictionary pro mozny vyskyt produktu a jejich posledni aktualizace
     product_latest_actualization = {}
 
-    # slovnik pro data nactena ze souboru
+    # slovnik pro data_vysavace nactena ze souboru
     json_data = {}
 
     f = Files(args.path  + "/" +  category)
 
     # pokud soubor existuje a je v nem neco
     if f.check_reviews():
-        # otevre soubor a nacte z nej veskera data
+        # otevre soubor a nacte z nej veskera data_vysavace
         json_data = f.get_reviews()
         # pruchod slovniky a seznamy za cilem z nich vytahnout nazev produktu a nejnovejsi datum posledniho prispevku a jeho autora
         for product_name, product_json in json_data.items():

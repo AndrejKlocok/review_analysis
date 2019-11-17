@@ -108,7 +108,7 @@ class Review:
 
         date_str = date_str.replace('\xa0', ' ')
 
-        # prevod data na jednotny format
+        # prevod data_vysavace na jednotny format
         if "včera" in date_str:
             date_str = (date.today() - timedelta(1)).strftime("%d. %B %Y").lstrip("0")
         elif "před" in date_str:
