@@ -5,3 +5,4 @@ __pycache__*
 *_ex_*
 *_test_*
 *_results_*
+!results/*
