@@ -3,13 +3,6 @@ from sklearn.model_selection import train_test_split
 import random
 import argparse
 
-
-def split_list(sentences, ratio):
-    n = len(sentences)
-    count = int(n * ratio)
-    return sentences[:count], sentences[count:]
-
-
 def load_datasets(dataset_path):
     sentences_cons = []
     sentences_pros = []
@@ -21,38 +14,6 @@ def load_datasets(dataset_path):
         sentences_pros = [(line[:-1], 0) for line in file]
 
     return sentences_pros, sentences_cons
-
-
-def bert(dataset_path, output_path):
-    sentences_pros, sentences_cons = load_datasets(dataset_path)
-
-    sentences_pros_train, sentences_pros = split_list(sentences_pros, 0.2)
-    sentences_cons_train, sentences_cons = split_list(sentences_cons, 0.2)
-
-    dataset = []
-    dataset_train = []
-    i = 0
-    for s, label in sentences_pros + sentences_cons:
-        dataset.append([i, label, 'a', s])
-        i += 1
-
-    for s, _ in sentences_pros_train + sentences_cons_train:
-        dataset_train.append([i, s])
-        i += 1
-
-    random.shuffle(dataset)
-    random.shuffle(dataset_train)
-
-    bert_data_frame = pd.DataFrame(dataset, columns=['id', 'label', 'alpha', 'text'])
-    df_bert_train, df_bert_dev = train_test_split(bert_data_frame, test_size=0.040)
-
-    # Creating test dataframe according to BERT
-    df_bert_test = pd.DataFrame(dataset_train, columns=['id', 'text'])
-
-    # Saving dataframes to .tsv format as required by BERT
-    df_bert_train.to_csv(output_path + 'train.tsv', sep='\t', index=False, header=False)
-    df_bert_dev.to_csv(output_path + 'dev.tsv', sep='\t', index=False, header=False)
-    df_bert_test.to_csv(output_path + 'test.tsv', sep='\t', index=False, header=True)
 
 
 def see(data_path, out_path):
@@ -116,9 +77,9 @@ def main():
 
     args = vars(parser.parse_args())
 
-    if args['bert']:
-        bert(args['data_path_in'], args['data_path_out'])
-    elif args['see']:
+    #if args['bert']:
+        #bert(args['data_path_in'], args['data_path_out'])
+    if args['see']:
         see(args['data_path_in'], args['data_path_out'])
 
 
