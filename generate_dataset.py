@@ -24,30 +24,40 @@ class Generator:
         self.is_equal = args['equal_dataset']
         self.n_categories = args['num_category']
 
-    def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=42):
+    def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=32):
         data = self.__con.get_subcategories_count(self.__category)
         sentences = []
         for name, count in data[:top_categories]:
             print("Dataset of " + name + " with " + str(count) + " reviews")
             review_list = self.__con.get_reviews_from_subcategory(self.__category, name)
             for review in review_list:
-                # write data
+                # write data TODO refactor this code
                 if self.is_pro:
-                    sen = []
-                    [self.__get_sentence(pro, sen, len_min, len_max) for pro in review["pros"]]
                     if self.is_just_sentence == 2:
-                        sentences.append(" ".join(sen).strip())
-                if self.is_con:
-                    sen = []
-                    [self.__get_sentence(c, sentences, len_min, len_max) for c in review["cons"]]
-                    if self.is_just_sentence == 2:
-                        sentences.append(" ".join(sen).strip())
+                        sen = []
+                        [self.__get_sentence(pro, sen, len_min, len_max) for pro in review["pros"]]
+                        if sen:
+                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                    else:
+                        [self.__get_sentence(pro, sentences, len_min, len_max) for pro in review["pros"]]
 
-                if self.is_summary and review["summary"]:
-                    sen = []
-                    self.__get_sentence(review["summary"], sen, len_min, len_max)
+                if self.is_con:
                     if self.is_just_sentence == 2:
-                        sentences.append(" ".join(sen).strip())
+                        sen = []
+                        [self.__get_sentence(c, sen, len_min, len_max) for c in review["cons"]]
+                        if sen:
+                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                    else:
+                        [self.__get_sentence(c, sentences, len_min, len_max) for c in review["cons"]]
+
+                if self.is_summary:
+                    if self.is_just_sentence == 2:
+                        sen = []
+                        self.__get_sentence(review["summary"], sen, len_min, len_max)
+                        if sen:
+                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                    else:
+                        self.__get_sentence(review["summary"], sentences, len_min, len_max)
 
         if shuffle:
             random.shuffle(sentences)
