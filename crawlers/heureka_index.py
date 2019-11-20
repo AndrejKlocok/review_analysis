@@ -7,7 +7,7 @@ import os
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from config import category_url
+from crawlers.config import category_url
 
 
 class Files:

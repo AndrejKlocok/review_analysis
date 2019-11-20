@@ -1,5 +1,5 @@
 from models.discussion import Files, Aspect
-from morpho_tagger import MorphoTagger
+from morpho.morpho_tagger import MorphoTagger
 
 import json
 import functools
@@ -46,10 +46,8 @@ class PosReview:
         }, ensure_ascii=False).encode('utf8').decode()
 
 
-def task(category):
+def task(category, tagger):
     try:
-        tagger = MorphoTagger()
-        tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
         f = Files(category)
         seed_aspects = f.get_aspects(f.aspect_name)
 
@@ -165,9 +163,12 @@ def main():
         # 'Stavebniny',
         # 'Sexualni a eroticke pomucky'
     ]
+    tagger = MorphoTagger()
+    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+
     for category in categories:
         start = time.time()
-        task(category)
+        task(category, tagger)
         print(time.time() - start)
 
 

@@ -1,6 +1,6 @@
 import argparse
 
-from morpho_tagger import MorphoTagger
+from morpho.morpho_tagger import MorphoTagger
 
 
 def main():

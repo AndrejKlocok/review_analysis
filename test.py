@@ -1,9 +1,8 @@
 import json
-from datetime import datetime
 
 from models.discussion import Files
-from morpho_tagger import MorphoTagger
-from elastic_connector import Connector
+from morpho.morpho_tagger import MorphoTagger
+from elastic.elastic_connector import Connector
 
 month_mapper = {
     "ledna": "January",

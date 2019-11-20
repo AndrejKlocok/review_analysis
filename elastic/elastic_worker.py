@@ -1,8 +1,8 @@
 import argparse, time, json
 
-from elastic_connector import Connector
+from elastic.elastic_connector import Connector
 from models.discussion import Files
-from morpho_tagger import MorphoTagger
+from morpho.morpho_tagger import MorphoTagger
 
 
 def get_str_pos(l):

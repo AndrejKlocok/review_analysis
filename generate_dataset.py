@@ -6,7 +6,7 @@ import pandas as pd
 import sys
 from sklearn.model_selection import train_test_split
 
-from elastic_connector import Connector
+from elastic.elastic_connector import Connector
 
 
 class Generator:
@@ -24,7 +24,7 @@ class Generator:
         self.is_equal = args['equal_dataset']
         self.n_categories = args['num_category']
 
-    def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=32):
+    def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=20):
         data = self.__con.get_subcategories_count(self.__category)
         sentences = []
         for name, count in data[:top_categories]:
@@ -37,7 +37,8 @@ class Generator:
                         sen = []
                         [self.__get_sentence(pro, sen, len_min, len_max) for pro in review["pros"]]
                         if sen:
-                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                            sen_txt = " ".join(s[:-1]for s in sen).strip()
+                            sentences.append(sen_txt+"\n")
                     else:
                         [self.__get_sentence(pro, sentences, len_min, len_max) for pro in review["pros"]]
 
@@ -46,7 +47,8 @@ class Generator:
                         sen = []
                         [self.__get_sentence(c, sen, len_min, len_max) for c in review["cons"]]
                         if sen:
-                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            sentences.append(sen_txt + "\n")
                     else:
                         [self.__get_sentence(c, sentences, len_min, len_max) for c in review["cons"]]
 
@@ -55,7 +57,8 @@ class Generator:
                         sen = []
                         self.__get_sentence(review["summary"], sen, len_min, len_max)
                         if sen:
-                            sentences.append(" ".join(s[:-1]for s in sen).strip())
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            sentences.append(sen_txt + "\n")
                     else:
                         self.__get_sentence(review["summary"], sentences, len_min, len_max)
 
@@ -117,9 +120,9 @@ class Generator:
                 # Creating test dataframe
                 df_neuron_test = pd.DataFrame(dataset_train, columns=['label', 'sentence'])
                 # Saving dataframes to .csv format
-                df_neuron_train.to_csv('train_binary.csv', sep=',', index=False, header=True)
-                df_neuron_dev.to_csv('dev_binary.csv', sep=',', index=False, header=True)
-                df_neuron_test.to_csv('test_binary.csv', sep=',', index=False, header=True)
+                df_neuron_train.to_csv('train_binary_sent.csv', sep=',', index=False, header=True)
+                df_neuron_dev.to_csv('dev_binary_sent.csv', sep=',', index=False, header=True)
+                df_neuron_test.to_csv('test_binary_sent.csv', sep=',', index=False, header=True)
 
             elif self.is_bert:
                 i = 0
@@ -150,7 +153,7 @@ class Generator:
 def task_emb(generator: Generator):
     try:
         with open("dataset_emb.txt", "w") as file:
-            sentences = generator.get_sentences(1)
+            sentences = generator.get_sentences(generator.n_categories)
             c = int(len(sentences) * 0.2)
             i = 0
             f_train = open("dataset_emb_test.txt", "w")
@@ -215,7 +218,7 @@ def main():
                                                   + "1 -> one \"section\" of pro/con review one row\n"
                                                   + "2 -> whole section pro/con as one row\n", type=int,
                         default=0)
-    parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int)
+    parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=1)
     parser.add_argument('-e', '--equal_dataset', help='Generate pos/neg equal size', action='store_true')
 
     args = vars(parser.parse_args())
@@ -246,7 +249,7 @@ def main():
     start = time.time()
     if args['embeddings']:
         for category in categories:
-            gen = Generator(category, con)
+            gen = Generator(category, con, args)
             task_emb(gen)
     elif args['classification']:
         for category in categories:

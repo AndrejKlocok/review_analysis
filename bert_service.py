@@ -21,10 +21,10 @@ def get_visual_embs(embV):
     return Wp
 
 
-def load_sentences(file, tuple=True):
+def load_sentences(path,file, tuple=True):
     category = file.split("_")[-1]
     sentences = []
-    with open(file, "r") as file:
+    with open(path+file, "r") as file:
         for line in file:
             line = line[:-1]
             if line:
@@ -32,16 +32,16 @@ def load_sentences(file, tuple=True):
     return sentences
 
 
-def load_sentences_data_train_set():
-    return  load_sentences("bert_service_ex_zvuk") + load_sentences("bert_service_ex_vykon") + load_sentences(
-            "bert_service_ex_zivotnost") + load_sentences("bert_service_ex_manipulace") + load_sentences(
-            "bert_service_ex_cena")
+def load_sentences_data_train_set(path):
+    return  load_sentences(path,"bert_service_ex_zvuk") + load_sentences(path,"bert_service_ex_vykon") + load_sentences(
+            path,"bert_service_ex_zivotnost") + load_sentences(path,"bert_service_ex_manipulace") + load_sentences(
+            path,"bert_service_ex_cena")
 
 
-def load_sentences_data_test_set():
-    return load_sentences("bert_service_test_zvuk") + load_sentences("bert_service_test_vykon") + load_sentences(
-        "bert_service_test_zivotnost") + load_sentences("bert_service_test_manipulace") + load_sentences(
-        "bert_service_test_cena")
+def load_sentences_data_test_set(path):
+    return load_sentences(path+"bert_service_test_zvuk") + load_sentences(path+"bert_service_test_vykon") + load_sentences(
+        path+"bert_service_test_zivotnost") + load_sentences(path+"bert_service_test_manipulace") + load_sentences(
+        path+"bert_service_test_cena")
 
 
 def visualize(data):
@@ -106,10 +106,10 @@ def cluster(bc ):
     f.close()
 
 
-def bert_service_dialog(bc):
+def bert_service_dialog(bc, path):
     topk = 10
     try:
-        q = load_sentences_data_train_set()
+        q = load_sentences_data_train_set(path)
         doc_vecs = bc.encode([sentence for sentence, _ in q], show_tokens=False)
 
         while True:
@@ -131,7 +131,7 @@ def bert_service_dialog(bc):
             print('> Predicted category: %s\t with score %s' % (colored(l[0], 'red'), colored(l[1], 'cyan')))
 
     except Exception as e:
-        print(e)
+        print('[bert_service_dialog] Exception: '+str(e))
 
 
 def test_embedding(bc, topk, q, doc_vecs):
@@ -183,20 +183,22 @@ def main():
     parser.add_argument('-clu', '--cluster', help='Run kmeans clustering', action='store_true')
     parser.add_argument('-test', '--test', help='Test context embedding, with n nearest sentece embeddings',
                         action='store_true')
+    parser.add_argument('-p', '--path', help='Path for input files',
+                        required=True)
     args = vars(parser.parse_args())
 
     ipv4 = "192.168.0.123"
     bc = BertClient(ip=ipv4, timeout=60000)
     print("Connected to server")
     if args['dialog']:
-        bert_service_dialog(bc)
+        bert_service_dialog(bc, args['path'])
     elif args['cluster']:
         start = time.time()
-        cluster(bc)
+        cluster(bc, args['path'])
         print(time.time() - start)
     elif args['test']:
         start = time.time()
-        q = load_sentences_data_train_set()
+        q = load_sentences_data_train_set(args['path'])
         doc_vecs = bc.encode([sentence for sentence, _ in q], show_tokens=False)
         for i in range(7,20):
             print("test_embedding with topK: " + str(i))

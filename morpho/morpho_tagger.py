@@ -1,14 +1,16 @@
 import argparse
-
-from ufal.morphodita import Tagger, Forms, TaggedLemmas, TokenRanges
-from stop_words import get_stop_words
-from external.czech_stemmer import cz_stem
-
 import re
 from re import finditer
 import json
 from enum import Enum
 from unidecode import unidecode
+import sys
+from ufal.morphodita import Tagger, Forms, TaggedLemmas, TokenRanges
+from stop_words import get_stop_words
+
+import sys
+sys.path.append("..")
+from external.czech_stemmer import cz_stem
 
 
 class Preprocess:
@@ -21,7 +23,8 @@ class Preprocess:
                            ":-D": "velmi_šťastná_tvář", ":D": "velmi_šťastná_tvář",
                            ":-(": "smutný", ":(": "smutná_tvář",
                            ":-*": "líbající_tvář", ":*": "líbající_tvář",
-                           ":-O": "překvapená_tvář", ":O": "překvapená_tvář", ":o": "překvapená_tvář", ":0": "překvapená_tvář",
+                           ":-O": "překvapená_tvář", ":O": "překvapená_tvář", ":o": "překvapená_tvář",
+                           ":0": "překvapená_tvář",
                            ":3": "kočičí_tvář",
                            ":/": "lehce_naštvaná_tvář", ":-/": "lehce_naštvaná_tvář",
                            ":-P": "vyčnívající_jazyk", ":P": "vyčnívající_jazyk", ":p": "vyčnívající_jazyk",
@@ -124,7 +127,7 @@ class MorphoTagger:
                     sentence = []
                     continue
                 # we want to work with flexible POS, thus we dont need stop words
-                #if tag[0] not in self.flexible:
+                # if tag[0] not in self.flexible:
                 #    continue
 
                 # dont stem english words
@@ -142,7 +145,8 @@ class MorphoTagger:
                 # Stem
                 if stem and not eng_word:
                     lemma = cz_stem(lemma)
-                sentence.append(WordPos(lemma, tag))
+                if lemma and len(lemma) > 2:
+                    sentence.append(WordPos(lemma, tag))
             sentences.append(sentence)
 
         return sentences
@@ -181,18 +185,18 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Script morpho tagger")
-    #parser.add_argument('-file', '--file', help='Aspect file', required=True)
-    #parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
+    # parser.add_argument('-file', '--file', help='Aspect file', required=True)
+    # parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
     parser.add_argument('-w', '--words', help='Key words')
     args = vars(parser.parse_args())
 
-    #file = open(args["file"], "a")
+    # file = open(args["file"], "a")
 
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger("../external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
-    #aspect = {"name":args["name"], "lemma_list":[]}
-    #s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")
+    # aspect = {"name":args["name"], "lemma_list":[]}
+    # s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")
     while True:
         try:
             query = input(colored('your query: ', 'green'))
@@ -204,10 +208,9 @@ def main():
         except Exception as e:
             print("[tagger] Exception: " + str(e))
 
-
-            #if wp.lemma not in aspect["lemma_list"]:
-                #aspect["lemma_list"].append(wp.lemma)
-    #file.write(str(aspect))
+            # if wp.lemma not in aspect["lemma_list"]:
+            # aspect["lemma_list"].append(wp.lemma)
+    # file.write(str(aspect))
 
 
 if __name__ == '__main__':

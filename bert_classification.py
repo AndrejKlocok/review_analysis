@@ -7,10 +7,10 @@ def load_datasets(dataset_path):
     sentences_cons = []
     sentences_pros = []
 
-    with open(dataset_path+"dataset_negative.txt", encoding='utf-8') as file:
+    with open(dataset_path+"negative.txt", encoding='utf-8') as file:
         sentences_cons = [(line[:-1], 1) for line in file]
 
-    with open(dataset_path+"dataset_positive.txt", encoding='utf-8') as file:
+    with open(dataset_path+"positive.txt", encoding='utf-8') as file:
         sentences_pros = [(line[:-1], 0) for line in file]
 
     return sentences_pros, sentences_cons
