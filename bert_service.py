@@ -1,6 +1,6 @@
 import argparse
 from bert_serving.client import BertClient
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 from termcolor import colored
 import operator
@@ -24,7 +24,7 @@ def get_visual_embs(embV):
 def load_sentences(path,file, tuple=True):
     category = file.split("_")[-1]
     sentences = []
-    with open(path+file, "r") as file:
+    with open(path+file, "r", encoding='utf-8') as file:
         for line in file:
             line = line[:-1]
             if line:
@@ -68,42 +68,43 @@ def visualize(data):
     plt.show()
 
 
-def cluster(bc ):
-    sentences = load_sentences("dataset_test.txt", tuple=False)
+def cluster(bc, path):
+    sentences = load_sentences(path,"dataset_emb.txt", tuple=False)
     # just 1000 sentences
-    sentences = sentences[:2000]
+    #sentences = sentences[:2000]
     start = time.time()
     tensors = bc.encode(sentences, show_tokens=False)
+    print("Clustering " + str(len(sentences)) + " sentences")
     print(time.time() - start)
     result = []
     num_clusters = 0
 
-    for i in range(20, 30):
-        try:
-            num_clusters = i
-            print("[cluster] Clusters: " + str(num_clusters))
-            kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=25)
-            assigned_clusters = kclusterer.cluster(tensors, assign_clusters=True)
-            output = {}
-            for k in range(0, num_clusters):
-                output[k] = []
+    #for i in range(20, 30):
+        #try:
+    num_clusters = 15
+    print("[cluster] Clusters: " + str(num_clusters))
+    kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=25,
+                                 avoid_empty_clusters=True)
+    assigned_clusters = kclusterer.cluster(tensors, assign_clusters=True)
+    output = {}
+    for k in range(0, num_clusters):
+        output[k] = []
 
-            for j, word in enumerate(sentences):
-                output[assigned_clusters[j]].append(word)
+    for j, word in enumerate(sentences):
+        output[assigned_clusters[j]].append(word)
 
-            result = output
+    result = output
 
-        except Exception as e:
-            print(e)
-            break
+        #except Exception as e:
+        #    print(e)
+        #    break
 
-    f = open("clusters_"+str(num_clusters)+".txt", "w")
+    f = open("clusters/"+str(num_clusters)+".txt", "w", encoding='utf-8')
     for key, value in result.items():
-        f.write(str(key) + " : ")
-        for val in value:
-            f.write(val + " | ")
-        f.write("\n")
-    f.close()
+        with open("clusters_15/"+str(key)+".txt",  "w", encoding='utf-8') as file:
+            print("cluster: " +str(key) + " sentences: " +str(len(value)))
+            for val in value:
+                file.write(val + "\n")
 
 
 def bert_service_dialog(bc, path):
