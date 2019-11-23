@@ -1,6 +1,6 @@
 import argparse
 
-from models.discussion import Files
+from discussion import Files
 import json, time
 
 

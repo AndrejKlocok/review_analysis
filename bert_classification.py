@@ -68,7 +68,7 @@ def see(data_path, out_path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrip generates desired dataset from elastic db")
+        description="Scrip generates desired dataset from utils db")
     parser.add_argument('-see', '--see', help='See', action='store_true')
     parser.add_argument('-bert', '--bert', help='Generate bert files', action='store_true')
     parser.add_argument('-comp', '--comp', help='Compare results  files', action='store_true')

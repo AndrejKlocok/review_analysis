@@ -1,11 +1,10 @@
-import argparse, time
+import argparse
 from functools import reduce
-import numpy as np
 #np.random.seed(time.time_ns())
 from gensim import corpora, models
 from os import listdir
 from os.path import isfile, join
-from morpho.morpho_tagger import MorphoTagger
+from morpho_tagger import MorphoTagger
 
 
 class LDA_model:

@@ -1,8 +1,8 @@
 import argparse, time, json
 
-from elastic.elastic_connector import Connector
-from models.discussion import Files
-from morpho.morpho_tagger import MorphoTagger
+from elastic_connector import Connector
+from morpho_tagger import MorphoTagger
+from datetime import datetime
 
 
 def get_str_pos(l):
@@ -14,11 +14,11 @@ def get_str_pos(l):
 
 def task(category, args, tagger, connection):
     try:
-        f = Files(category)
+        print(category)
         cat_lower = category.lower().strip()
-        domain = cat_lower.replace(' ', '_')
+        domain = cat_lower.replace(' ', '_').replace(',','')
 
-        with open(args.path + f.reviews_name, "r") as file:
+        with open(args.path + category + "_reviews.txt", "r") as file:
             for line in file:
                 try:
                     product_dict = json.loads(line[:-1])
@@ -39,6 +39,9 @@ def task(category, args, tagger, connection):
                         print("Product of " + product_name + " " + " not created")
 
                     for rev_dic in product_dict["reviews"]:
+                        rev_dic["date_str"] = rev_dic["date"]
+                        datetime_object = datetime.strptime(rev_dic["date_str"], '%d. %B %Y')
+                        rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
                         rev_dic["category"] = sub_cat_name
                         rev_dic["product_name"] = product_name
                         rev_dic["domain"] = domain
@@ -60,8 +63,6 @@ def task(category, args, tagger, connection):
                         if not connection.index(domain, rev_dic):
                             print("Review of " + product_name + " " + " not created")
 
-
-
                 except Exception as e:
                     print("[task] " + product_dict["name"] + "- Error: " + str(e))
                     exit(1)
@@ -74,34 +75,34 @@ def task(category, args, tagger, connection):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrip indexes crawled data from heureka to elastic")
+        description="Scrip indexes crawled data from heureka to utils")
     requiredNamed = parser.add_argument_group('required named arguments')
     requiredNamed.add_argument('-path', help='Path to the database', required=True)
     args = parser.parse_args()
 
     # create tagger
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger("../external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
     # Elastic
     con = Connector()
 
     # categories
     categories = [
-        # 'Elektronika',
-        'Bile zbozi',
-        # 'Dum a zahrada',
-        # 'Chovatelstvi',
-        # 'Auto-moto',
-        # 'Detske zbozi',
-        # 'Obleceni a moda',
-        # 'Filmy, knihy, hry',
-        # 'Kosmetika a zdravi',
-        # 'Sport',
-        # 'Hobby',
-        # 'Jidlo a napoje',
-        # 'Stavebniny',
-        # 'Sexualni a eroticke pomucky'
+        #'Elektronika',
+        #'Bile zbozi',
+        #'Dum a zahrada',
+        #'Chovatelstvi',
+        #'Auto-moto',
+        #'Detske zbozi',
+        #'Obleceni a moda',
+        'Filmy, knihy, hry',
+        #'Kosmetika a zdravi',
+        #'Sport',
+        #'Hobby',
+        #'Jidlo a napoje',
+        #'Stavebniny',
+        #'Sexualni a eroticke pomucky'
     ]
 
     for category in categories:

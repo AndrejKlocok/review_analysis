@@ -193,7 +193,7 @@ def main():
     # file = open(args["file"], "a")
 
     tagger = MorphoTagger()
-    tagger.load_tagger("../external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
     # aspect = {"name":args["name"], "lemma_list":[]}
     # s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")

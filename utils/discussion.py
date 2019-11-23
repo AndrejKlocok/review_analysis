@@ -176,6 +176,9 @@ class Product:
     def set_cateogry(self, category: str):
         self.category = category
 
+    def get_cateogry(self):
+        return self.category
+
     def add_review(self, review: Review):
         self.reviews.append(review)
 

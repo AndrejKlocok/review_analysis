@@ -6,7 +6,7 @@ import pandas as pd
 import sys
 from sklearn.model_selection import train_test_split
 
-from elastic.elastic_connector import Connector
+from utils.elastic_connector import Connector
 
 
 class Generator:
@@ -204,7 +204,7 @@ def task_cls(generator: Generator):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrip generates desired dataset from elastic db")
+        description="Scrip generates desired dataset from utils db")
     parser.add_argument('-emb', '--embeddings', help='Generate dataset for embeddings with all sentences, 80-20',
                         action='store_true')
     parser.add_argument('-cls', '--classification', help='Generate dataset for sentiment classification +-',
