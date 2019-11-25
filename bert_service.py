@@ -1,12 +1,11 @@
-import argparse
+import argparse, random, nltk, time, operator, os
 from bert_serving.client import BertClient
 #import matplotlib.pyplot as plt
 import numpy as np
+from datetime import datetime
 from termcolor import colored
-import operator
 from nltk.cluster import KMeansClusterer
-import nltk
-import time
+
 
 
 def get_visual_embs(embV):
@@ -71,7 +70,7 @@ def visualize(data):
 def cluster(bc, path):
     sentences = load_sentences(path,"dataset_emb.txt", tuple=False)
     # just 1000 sentences
-    #sentences = sentences[:2000]
+    #sentences = sentences[:20]
     start = time.time()
     tensors = bc.encode(sentences, show_tokens=False)
     print("Clustering " + str(len(sentences)) + " sentences")
@@ -81,10 +80,11 @@ def cluster(bc, path):
 
     #for i in range(20, 30):
         #try:
-    num_clusters = 15
+    num_clusters = 10
+    rng = random.Random(datetime.now())
     print("[cluster] Clusters: " + str(num_clusters))
-    kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=25,
-                                 avoid_empty_clusters=True)
+    kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=60,
+                                 avoid_empty_clusters=True, rng=rng)
     assigned_clusters = kclusterer.cluster(tensors, assign_clusters=True)
     output = {}
     for k in range(0, num_clusters):
@@ -98,10 +98,12 @@ def cluster(bc, path):
         #except Exception as e:
         #    print(e)
         #    break
-
-    f = open("clusters/"+str(num_clusters)+".txt", "w", encoding='utf-8')
+    dir = "clusters"+str(num_clusters)
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    #f = open("clusters"+str(num_clusters)+".txt", "w", encoding='utf-8')
     for key, value in result.items():
-        with open("clusters_15/"+str(key)+".txt",  "w", encoding='utf-8') as file:
+        with open(dir+"/"+str(key)+".txt",  "w", encoding='utf-8') as file:
             print("cluster: " +str(key) + " sentences: " +str(len(value)))
             for val in value:
                 file.write(val + "\n")
@@ -177,6 +179,19 @@ def test_embedding(bc, topk, q, doc_vecs):
         print("Nearest k:" + str(topk) + str(results))
 
 
+def embedding_projector(bc, path):
+    try:
+        sentences = load_sentences(path, "dataset_emb.txt", tuple=False)
+        s = sentences[0]
+        tensors, tokens = bc.encode([s], show_tokens=True)
+
+        with open('vectors.tsv', "w") as file:
+            for tensor in tensors:
+                pass
+
+    except Exception as e:
+        print("[embedding_projector] Exception: " + str(e))
+
 def main():
     parser = argparse.ArgumentParser(
         description="Script works with bert-as-service embedding")
@@ -184,27 +199,35 @@ def main():
     parser.add_argument('-clu', '--cluster', help='Run kmeans clustering', action='store_true')
     parser.add_argument('-test', '--test', help='Test context embedding, with n nearest sentece embeddings',
                         action='store_true')
+
+    parser.add_argument('-v', '--visualize', help='Visualize bert embeddings with embeding projector, *.tsv files',
+                        action='store_true')
+
     parser.add_argument('-p', '--path', help='Path for input files',
+                        required=True)
+    parser.add_argument('-ip', '--ip', help='IP for bert as service',
                         required=True)
     args = vars(parser.parse_args())
 
-    ipv4 = "192.168.0.123"
+    ipv4 = args['ip']
     bc = BertClient(ip=ipv4, timeout=60000)
     print("Connected to server")
+    start = time.time()
     if args['dialog']:
         bert_service_dialog(bc, args['path'])
     elif args['cluster']:
-        start = time.time()
         cluster(bc, args['path'])
-        print(time.time() - start)
     elif args['test']:
-        start = time.time()
         q = load_sentences_data_train_set(args['path'])
         doc_vecs = bc.encode([sentence for sentence, _ in q], show_tokens=False)
         for i in range(7,20):
             print("test_embedding with topK: " + str(i))
             test_embedding(bc, i, q, doc_vecs)
-        print(time.time() - start)
+    elif args['visualize']:
+        embedding_projector(bc, args['path'])
+
+
+    print(time.time() - start)
 
 
 if __name__ == '__main__':
