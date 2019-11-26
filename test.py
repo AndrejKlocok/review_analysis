@@ -108,14 +108,14 @@ def main():
     #datetime_object = datetime.strptime('30. January 2019', '%d. %B %Y')
     #print(datetime_object.strftime('%Y-%m-%d'))
     #res = con.es.search('domain', size=20)["hits"]
-    #res = con.get_newest_review('Filmy, knihy, hry', 'Evropa Euro nepotřebuje')
+    #res = con.get_newest_review('Elektronika', 'Threadripper')
     #print(res)
     #res = con.get_review_by_product_author_timestr('Bile zbozi', 'Gillette Mach3 12 ks', 'Mirka', '11. November 2019')
-    res = con.get_category_urls('Filmy, knihy, hry')
-    #res = con.get_product_by_name('Evropa Euro nepotřebuje')
-    #print(res)
+    #res = con.get_category_urls('Filmy, knihy, hry')
+    res = con.get_product_by_name('Threadripper')
+    print(res)
     #print(res[0])
-    print(len(res))
+    #print(len(res))
     #doc = {
     #    'author': 'kimchy',
     #    'text': 'Elasticsearch: cool. bonsai cool.',
