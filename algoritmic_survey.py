@@ -132,7 +132,7 @@ class Tester:
 
             print("Performing grid search...")
             print("pipeline:", [name for name, _ in pipeline.steps])
-            continue
+
             grid_search.fit(data_x, data_y)
             print("done in %0.3fs" % (time() - t0))
 
@@ -227,8 +227,8 @@ def main():
     args = vars(parser.parse_args())
 
     start = time.time()
-    data_pos = load_sentences(args['inP'], 0)[:20]
-    data_neg = load_sentences(args['inN'], 1)[:20]
+    data_pos = load_sentences(args['inP'], 0)
+    data_neg = load_sentences(args['inN'], 1)
 
     print('Positive: ' + str(len(data_pos)))
     print('Negative: ' + str(len(data_neg)))
