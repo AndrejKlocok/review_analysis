@@ -12,23 +12,28 @@ from utils.morpho_tagger import MorphoTagger
 class HeurekaCrawler:
     def __init__(self, connector, tagger):
         self.categories = [
-            #'Elektronika',
+            'Elektronika',
             'Bile zbozi',
-            #'Dum a zahrada',
-            #'Chovatelstvi',
-            #'Auto-moto',
-            #'Detske zbozi',
-            #'Obleceni a moda',
-            #'Filmy, knihy, hry',
-            #'Kosmetika a zdravi',
-            #'Sport',
-            #'Hobby',
-            #'Jidlo a napoje',
-            #'Stavebniny',
-            #'Sexualni a eroticke pomucky'
+            'Dum a zahrada',
+            'Chovatelstvi',
+            'Auto-moto',
+            'Detske zbozi',
+            'Obleceni a moda',
+            'Filmy, knihy, hry',
+            'Kosmetika a zdravi',
+            'Sport',
+            'Hobby',
+            'Jidlo a napoje',
+            'Stavebniny',
+            'Sexualni a eroticke pomucky'
         ]
         self.connector = connector
         self.tagger = tagger
+
+        self.total_review_count = 0
+        self.total_products_count = 0
+        self.total_product_new_count = 0
+        self.total_review_new_count_new = 0
 
         pass
 
@@ -165,13 +170,15 @@ class HeurekaCrawler:
 
         return categories_urls
 
-    def add_to_elastic(self, product, category, product_new_count, review_new_count_new):
+    def add_to_elastic(self, product, category):
         def get_str_pos(l):
             s = []
             for sentence in l:
                 s.append([str(wb) for wb in sentence])
             return s
 
+        product_new_count = 0
+        review_new_count_new = 0
         l = product.get_name().split("(")
         sub_cat_name = l[-1][:-1]
         product_name = l[0].strip()
@@ -188,8 +195,8 @@ class HeurekaCrawler:
                 "url": product.get_url()
             }
 
-            # if not self.connector.index("product", product_elastic):
-            #    print("Product of " + product_name + " " + " not created")
+            if not self.connector.index("product", product_elastic):
+                print("Product of " + product_name + " " + " not created")
 
         # Save review elastic
         for rev in product.get_reviews():
@@ -213,20 +220,22 @@ class HeurekaCrawler:
             rev_dic["pro_POS"] = pro_pos
             rev_dic["cons_POS"] = cons_pos
             rev_dic["summary_POS"] = summary_pos
-            # if not self.connector.index(domain, rev_dic):
-            #    print("Review of " + product_name + " " + " not created")
+            if not self.connector.index(domain, rev_dic):
+                print("Review of " + product_name + " " + " not created")
+
+        return product_new_count, review_new_count_new
 
     def actualize_reviews(self, obj_product_dict, category_domain, fast: bool):
-        categories_urls = self.get_urls(category_domain, "top-recenze")
+        categories_urls = self.get_urls(category_domain, "top-recenze/")
 
         for category_url in categories_urls:
             next_ref = " "
-
             while next_ref:
                 try:
                     infile = BeautifulSoup(urlopen(category_url + next_ref), "lxml")
                 except Exception as e:
                     print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
+                    print(category_url, file=sys.stderr)
                     break
 
                 review_list = infile.find_all(class_="review")
@@ -254,7 +263,9 @@ class HeurekaCrawler:
                         review = self.parse_review(rev)
                         product_obj.add_review(review)
 
-                        review_elastic = self.connector.get_review_by_product_author_timestr(category_domain, product_name_raw, review.author, review.date)
+                        review_elastic = self.connector.get_review_by_product_author_timestr(category_domain,
+                                                                                             product_name_raw,
+                                                                                             review.author, review.date)
                         if review_elastic:
                             if fast:
                                 next_ref = None
@@ -271,6 +282,7 @@ class HeurekaCrawler:
 
                     except Exception as e:
                         print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
+                        print(category_url, file=sys.stderr)
                         pass
 
                 # ak je fast metoda tak pri najdeni existujucej recenze chceme odist z cyklu
@@ -287,7 +299,6 @@ class HeurekaCrawler:
                 else:
                     next_ref = None
                     break
-            break
 
     def task_seed_aspect_extraction(self, category: str, path: str):
         try:
@@ -361,7 +372,7 @@ class HeurekaCrawler:
             product_new_count = 0
             review_new_count_new = 0
 
-            f_actualized = open(category+"_actualized.txt", "w")
+            f_actualized = open(category + "_actualized.txt", "w")
             self.actualize_reviews(actualized_dict_of_products, category, fast)
             for _, product in actualized_dict_of_products.items():
                 # Statistics
@@ -371,11 +382,18 @@ class HeurekaCrawler:
                 f_actualized.write(str(product) + "\n")
 
                 # Save product elastic
-                self.add_to_elastic(product, category, product_new_count, review_new_count_new)
-
+                p_n_c, r_n_c_n = self.add_to_elastic(product, category)
+                product_new_count += p_n_c
+                review_new_count_new += r_n_c_n
             f_actualized.close()
             print(category + " has: " + str(review_count) + " reviews, affected products: " + str(
-                products_count) + ", new products: " + str(product_new_count) + ", new product`s reviews: " + str(review_new_count_new))
+                products_count) + ", new products: " + str(product_new_count) + ", new product`s reviews: " + str(
+                review_new_count_new))
+
+            self.total_review_count += review_count
+            self.total_products_count += products_count
+            self.total_review_new_count_new += review_new_count_new
+            self.total_product_new_count += product_new_count
 
         except Exception as e:
             print("[actualize] " + str(e), file=sys.stderr)
@@ -448,8 +466,8 @@ def main():
     parser.add_argument("-actualize", "--actualize", action="store_true", help="Actualize reviews")
     # parser.add_argument("-fast", action="store_true", help="Actualize reviews, when review exists breaks searching for category")
     parser.add_argument("-aspect", "--aspect", action="store_true", help="Get aspects from category specification")
-    parser.add_argument("-crawl", "--crawl",  action="store_true", help="Crawl heureka reviews with url dataset")
-    parser.add_argument("-path", "-path",  help="Path to the dataset folder")
+    parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
+    parser.add_argument("-path", "-path", help="Path to the dataset folder")
 
     args = vars(parser.parse_args())
     # create tagger
@@ -468,6 +486,7 @@ def main():
             # actualize reviews
             # always fast for now
             crawler.task_actualize(category, True)  # args.fast)
+
         elif args['aspect']:
             # aspect extraction
             crawler.task_seed_aspect_extraction(category, args['path'])
@@ -478,6 +497,11 @@ def main():
         print(time.time() - start)
 
     if args['actualize']:
+        # Logs
+        print("Total" + str(crawler.total_review_count) + " reviews, affected products: " + str(
+            crawler.total_products_count) + ", new products: " + str(
+            crawler.total_product_new_count) + ", new product`s reviews: " + str(
+            crawler.total_review_new_count_new))
         # zapis datumu aktualizace
         with open("actualization_dates", "a") as act_dates:
             act_dates.write(date.today().strftime("%d. %B %Y").lstrip("0") + "\n")

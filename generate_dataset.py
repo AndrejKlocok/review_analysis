@@ -23,6 +23,7 @@ class Generator:
         self.is_just_sentence = args['sentences']
         self.is_equal = args['equal_dataset']
         self.n_categories = args['num_category']
+        self.rating = (0, 100)
 
     def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=20):
         data = self.__con.get_subcategories_count(self.__category)
@@ -31,6 +32,11 @@ class Generator:
             print("Dataset of " + name + " with " + str(count) + " reviews")
             review_list = self.__con.get_reviews_from_subcategory(self.__category, name)
             for review in review_list:
+
+                rating = int(review['rating'][:-1])
+                if not (self.rating[0] <= rating <= self.rating[1]):
+                    continue
+
                 # write data TODO refactor this code
                 if self.is_pro:
                     if self.is_just_sentence == 2:
@@ -83,6 +89,7 @@ class Generator:
                 # file.write(sentence.strip().capitalize() + ".\n")
                 sentence = sentence.strip().capitalize()
                 sentence = re.sub(r'\.{2,}', "", sentence)
+                sentence = re.sub(r'\t+', ' ', sentence)
                 if sentence[-1] != '.':
                     sentence += '.'
                 sentences.append(sentence + "\n")
@@ -169,6 +176,11 @@ def task_emb(generator: Generator):
         print("[task_emb] Exception: " + str(e))
 
 
+def statistics(pro, con):
+    print("Positive sentences: " + str(len(pro)))
+    print("Negative sentences: " + str(len(con)))
+
+
 def task_cls(generator: Generator):
     try:
         generator.is_summary = False
@@ -193,10 +205,45 @@ def task_cls(generator: Generator):
         if generator.is_bert:
             generator.bert(sentences_pro, sentences_con)
 
+        statistics(sentences_pro, sentences_con)
+
         with open(name + "_positive.txt", "w") as f_pros:
             [f_pros.write(s) for s in sentences_pro]
         with open(name + "_negative.txt", "w") as f_cons:
             [f_cons.write(s) for s in sentences_con]
+
+    except Exception as e:
+        print("[task_cls] Exception: " + str(e))
+
+
+def reviews_nratings(generator:Generator, n_cat):
+    try:
+        generator.is_summary = True
+        generator.is_con = True
+        generator.is_pro = True
+        name = "dataset"
+
+        delta = int(100/n_cat)
+        d = {}
+        for x in range(0, n_cat):
+            generator.rating = (x*delta, x*delta+delta)
+            sentences = generator.get_sentences(generator.n_categories, True)
+            d[str(x)] = sentences
+
+        if generator.is_equal:
+            d_eq = {}
+            min = len(d['0'])
+            for key, value in d.items():
+                print(key + "has total of: " + str(len(value)))
+                if min > len(value):
+                    min = len(value)
+            for key, value in d.items():
+                d_eq[key] = d[key][:min]
+            d = d_eq
+        for key, value in d.items():
+            with open(name+'_'+key, 'w') as file:
+                for s in value:
+                    file.write(s)
 
     except Exception as e:
         print("[task_cls] Exception: " + str(e))
@@ -209,6 +256,9 @@ def main():
                         action='store_true')
     parser.add_argument('-cls', '--classification', help='Generate dataset for sentiment classification +-',
                         action='store_true')
+    parser.add_argument('-cnn', '--cnn', help='Generate dataset for 5 clases according to review',
+                        action='store_true')
+
     parser.add_argument('-b', '--bert', help='Generate also data for Bert model (train.tsv, test.tsv, dev.tsv)',
                         action='store_true')
     parser.add_argument('-neur', '--neuron',
@@ -255,6 +305,10 @@ def main():
         for category in categories:
             gen = Generator(category, con, args)
             task_cls(gen)
+    elif args['cnn']:
+        for category in categories:
+            gen = Generator(category, con, args)
+            reviews_nratings(gen, 5)
 
     print(time.time() - start)
 
