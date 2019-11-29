@@ -1,5 +1,6 @@
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
+from elasticsearch.exceptions import NotFoundError
 
 import json, sys
 
@@ -8,9 +9,48 @@ class Connector:
     def __init__(self):
         # connect to localhost
         self.es = Elasticsearch()
-        res = self.es.search('domain', size=20)["hits"]
+        try:
+            res = self.es.search('domain', size=20)["hits"]
+        except NotFoundError:
+            self.init_domains()
+            res = self.es.search('domain', size=20)["hits"]
+            pass
+
         self.domain = { hit["_source"]["name"]:hit["_source"]["domain"] for hit in res['hits']}
         self.max = 10000
+
+    def init_domains(self):
+        """
+        Initialize domains of products to ES
+        :return:
+        """
+        indexes = {
+            'Elektronika': 'elektronika',
+            'Bile zbozi': 'bile_zbozi',
+            'Dum a zahrada': 'dum_a_zahrada',
+            'Chovatelstvi': 'chovatelstvi',
+            'Auto-moto': 'auto-moto',
+            'Detske zbozi': 'detske_zbozi',
+            'Obleceni a moda': 'obleceni_a_moda',
+            'Filmy, knihy, hry': 'filmy_knihy_hry',
+            'Kosmetika a zdravi': 'kosmetika_a_zdravi',
+            'Sport': 'sport',
+            'Hobby': 'hobby',
+            'Jidlo a napoje': 'jidlo_a_napoje',
+            'Stavebniny': 'stavebniny',
+            'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
+            "product": "product",
+        }
+
+        for k, v in indexes.items():
+            d = {
+                "name": k,
+                "domain": v
+            }
+            res = self.es.index(index="domain", doc_type='doc', body=d)
+            print(res['result'])
+
+        self.es.indices.refresh(index="domain")
 
     def index(self, index:str, doc:dict):
         try:
@@ -21,15 +61,36 @@ class Connector:
             print("[Connector-index] Error: " + str(e), file=sys.stderr)
             return None
 
-    def get_count(self, index:str):
-        """
-        Get count of all documents from index
-        example output <class 'dict'>: {'count': 24243, '_shards': {'total': 1, 'successful': 1, 'skipped': 0, 'failed': 0}}
-        :param index:
-        :return: dictionary
-        """
+    def get_count(self, category:str, subcategory=None):
         try:
-            res = self.es.count(index=index)
+            index = self.get_domain(category)
+            if not subcategory:
+                res = self.es.count(index=index)['count']
+            else:
+                subcategory_domain = self.get_domain(subcategory)
+                body = {
+                    "size": 0,
+                    "query": {
+                        "term": {
+                            "domain.keyword": {
+                                "value": subcategory_domain,
+                                "boost": 1.0
+                            }
+                        }
+                    },
+                    "_source": False,
+                    "stored_fields": "_none_",
+                    "sort": [
+                        {
+                            "_doc": {
+                                "order": "asc"
+                            }
+                        }
+                    ],
+                    "track_total_hits": 2147483647
+                }
+                res = self.es.search(index=index, body=body)['hits']['total']['value']
+
             return res
         except Exception as e:
             print("[Connector-index] Error: " + str(e), file=sys.stderr)

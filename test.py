@@ -68,43 +68,12 @@ def morpho(category):
                             log.write("\t" + val_str + " " + str(val) + "\n")
 
 
-def create_domains():
-    from elasticsearch import Elasticsearch
-
-    es = Elasticsearch()
-    indexes = {
-        'Elektronika': 'elektronika',
-        'Bile zbozi': 'bile_zbozi',
-        'Dum a zahrada': 'dum_a_zahrada',
-        'Chovatelstvi': 'chovatelstvi',
-        'Auto-moto': 'auto-moto',
-        'Detske zbozi': 'detske_zbozi',
-        'Obleceni a moda': 'obleceni_a_moda',
-        'Filmy, knihy, hry': 'filmy_knihy_hry',
-        'Kosmetika a zdravi': 'kosmetika_a_zdravi',
-        'Sport': 'sport',
-        'Hobby': 'hobby',
-        'Jidlo a napoje': 'jidlo_a_napoje',
-        'Stavebniny': 'stavebniny',
-        'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
-        "product" : "product"
-
-    }
-    doc = []
-
-    for k, v in indexes.items():
-        d = {
-            "name": k,
-            "domain": v
-        }
-        res = es.index(index="domain", doc_type='doc', body=d)
-        print(res['result'])
-
-    es.indices.refresh(index="domain")
-
-
 def main():
     con = Connector()
+    #res = con.es.search('domain', size=20)["hits"]
+    res = con.match_all('product')
+    print(len(res))
+    print(res[0])
     #datetime_object = datetime.strptime('30. January 2019', '%d. %B %Y')
     #print(datetime_object.strftime('%Y-%m-%d'))
     #res = con.es.search('domain', size=20)["hits"]
@@ -112,8 +81,8 @@ def main():
     #print(res)
     #res = con.get_review_by_product_author_timestr('Bile zbozi', 'Gillette Mach3 12 ks', 'Mirka', '11. November 2019')
     #res = con.get_category_urls('Filmy, knihy, hry')
-    res = con.get_product_by_name('Threadripper')
-    print(res)
+    #res = con.get_product_by_name('Threadripper')
+    #print(res)
     #print(res[0])
     #print(len(res))
     #doc = {

@@ -1,19 +1,22 @@
-import  json, time
+import json, time
 import statistics
 import argparse
 from datetime import datetime
 from dateutil import parser
 from matplotlib import pyplot as plt
 from matplotlib import style
-from discussion import Files
+import sys
+
+from utils.elastic_connector import Connector
+
 
 class TimeData:
-    def __init__(self, sentiment:float):
+    def __init__(self, sentiment: float):
         self.count = 1
         self.sentiments = [sentiment]
         self.mean_sentiment = 0.0
 
-    def add_data(self, sentiment:float):
+    def add_data(self, sentiment: float):
         self.sentiments.append(sentiment)
         self.count += 1
 
@@ -38,11 +41,12 @@ class CategoryStatistic:
         self.sentiment_max = 0.0
         self.sentiment_min = 0.0
         # {date: TimeData}
-        self.stat_review_month:{datetime:TimeData} = {}
+        self.stat_review_month: {datetime: TimeData} = {}
         self.recommends = 0
         self.pros_len = []
         self.cons_len = []
         self.summary_len = []
+
 
 def serialize(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -51,6 +55,7 @@ def serialize(obj):
         serial = obj.count
         return str(serial)
     return obj.__dict__
+
 
 class Statistic:
     def __init__(self):
@@ -64,7 +69,7 @@ class Statistic:
             "ledna": "January",
             "února": "February",
             "března": "March",
-            "dubna":  "April",
+            "dubna": "April",
             "května": "May",
             "června": "June",
             "července": "July",
@@ -86,13 +91,15 @@ class Statistic:
         if category not in self.categories:
             self.categories[category] = CategoryStatistic()
 
-    def submit_review(self, category:str, review:dict):
-        category_stat:CategoryStatistic = self.categories[category]
+    def submit_review(self, review: dict):
+        category = review['category']
+        category_stat: CategoryStatistic = self.categories[category]
+        self.reviews_count += 1
         category_stat.count += 1
         try:
             sentiment = float(review["rating"][:-1]) / 100
 
-            date_str = review["date"].replace('\xa0', ' ')
+            date_str = review["date_str"].replace('\xa0', ' ')
             month = self.map_month_to_english(date_str.split(".")[1][1:])
 
             category_stat.sentiments.append(sentiment)
@@ -106,7 +113,7 @@ class Statistic:
             summary_len_words = len(review["summary"].split(" "))
             summary_len_words += len(review["pros"]) + len(review["cons"])
 
-            if summary_len_words > 0 :
+            if summary_len_words > 0:
                 category_stat.summary_len.append(summary_len_words)
 
             category_stat.pros_len.append(len(review["pros"]))
@@ -115,50 +122,50 @@ class Statistic:
             print("[submit_review]" + str(e))
             return
 
-    def map_month_to_english(self, month:str)->str:
+    def map_month_to_english(self, month: str) -> str:
         m = month.split(" ")
         if m[0] in self.month_mapper:
             m[0] = self.month_mapper[m[0]]
 
-        return m[0]+" "+m[1]
+        return m[0] + " " + m[1]
 
-    def sort_month_dic_to_list(self, dic:dict)-> list:
+    def sort_month_dic_to_list(self, dic: dict) -> list:
         l = []
         for month, time_data in dic.items():
             time_data.compute_mean_sentiment()
-            l.append( (parser.parse(month), (time_data.count, round(time_data.mean_sentiment, 2))))
+            l.append((parser.parse(month), (time_data.count, round(time_data.mean_sentiment, 2))))
         l.sort(key=lambda x: x[0], reverse=True)
         return l
 
     def plot_dates(self, date_list, category_name):
         with open("log_dates.txt", "w") as dates_file:
             for d, time_data in date_list:
-                dates_file.write(d.strftime("%D_%Y")+" " +str(time_data[0]) + " " +str(time_data[1]) +"\n")
+                dates_file.write(d.strftime("%D_%Y") + " " + str(time_data[0]) + " " + str(time_data[1]) + "\n")
         x, y = zip(*date_list)
         y1, y2 = zip(*y)
 
         # reviews
         style.use('ggplot')
-        plt.title('['+category_name +'] Review count in time')
+        plt.title('[' + category_name + '] Review count in time')
         plt.ylabel('Review count')
         plt.xlabel('Date')
         plt.plot(x, y1)
-        #plt.show()
-        plt.savefig(category_name +'_reviews.png')
+        # plt.show()
+        plt.savefig(category_name + '_reviews.png')
 
         plt.clf()
 
-        #sentiments
-        plt.title('['+category_name +']Average sentiment in time')
+        # sentiments
+        plt.title('[' + category_name + ']Average sentiment in time')
         plt.ylabel('Sentiment [%]')
         plt.xlabel('Date')
         plt.plot(x, y2)
-        #plt.show()
-        plt.savefig(category_name +'_sentiment.png')
+        # plt.show()
+        plt.savefig(category_name + '_sentiment.png')
 
         pass
 
-    def category_tree(self, category_string:str):
+    def category_tree(self, category_string: str):
         d = self.category_map
         cats = category_string.split("|")
         for cat in cats[1:-1]:
@@ -171,13 +178,11 @@ class Statistic:
         else:
             d[cats[-1]] += 1
 
-
-    def category_add(self, d:dict, s:str):
+    def category_add(self, d: dict, s: str):
         if str not in d:
             d[str] = {}
 
-
-    def log(self, category_name:str):
+    def log(self, category_name: str):
         d = {}
         sentiments = []
         min_s = 0.0
@@ -231,15 +236,15 @@ class Statistic:
                     "min_cons_len": str(min(stat.cons_len)),
                     "mean_summary_len": str(meanSum),
                     "max_summary_len": str(max(stat.cons_len)),
-                    "min_summary_len": str(min(stat.cons_len))#,
-                    #"dates": dates
+                    "min_summary_len": str(min(stat.cons_len))  # ,
+                    # "dates": dates
                 }
             except Exception as e:
-                print("["+name + "]" +str(e))
+                print("[" + name + "]" + str(e))
             d[name] = cat
-        #self.pros_len = []
-        #self.cons_len = []
-        #self.summary_len = []
+        # self.pros_len = []
+        # self.cons_len = []
+        # self.summary_len = []
 
         min_s = min(sentiments)
         max_s = max(sentiments)
@@ -257,25 +262,25 @@ class Statistic:
         max_sum = max(summaries)
         mean_sum = statistics.mean(summaries)
 
-
         dates_list = self.sort_month_dic_to_list(dates_all)
 
         print("Product counts: " + str(self.prod_count))
         print("Review counts: " + str(self.reviews_count))
         print("Categories: " + str(len(d.items())))
-        print("Mean sentiment: " +str(round(mean_s, 2)))
-        print("Max sentiment: " + str(round(max_s,2)))
-        print("Min sentiment: " + str(round(min_s,2)))
-        print("Mean pros per review: " +str(round(mean_pros, 2)))
-        print("Mean cons per review: " + str(round(mean_cons,2)))
-        print("Mean review length: " + str(round(mean_sum,2)))
+        print("Mean sentiment: " + str(round(mean_s, 2)))
+        print("Max sentiment: " + str(round(max_s, 2)))
+        print("Min sentiment: " + str(round(min_s, 2)))
+        print("Mean pros per review: " + str(round(mean_pros, 2)))
+        print("Mean cons per review: " + str(round(mean_cons, 2)))
+        print("Mean review length: " + str(round(mean_sum, 2)))
 
         with open("log.txt", "w") as log_file:
             log_file.write(json.dumps(d))
 
         self.plot_dates(dates_list, category_name)
 
-def parse_old_data(file:str):
+
+def parse_old_data(file: str):
     stats = Statistic()
     with open("all_in_one_out", "r") as json_file:
         data = json.load(json_file)
@@ -286,7 +291,7 @@ def parse_old_data(file:str):
                 for key, review in product.items():
                     name = key.split("(")[0]
                     category = key.split("(")[1][:-1]
-                    #print(name + " " + category)
+                    # print(name + " " + category)
                     stats.add_category(category)
 
                     for rev in review:
@@ -299,33 +304,20 @@ def parse_old_data(file:str):
 
     stats.log(file)
 
-def parse(file:str):
+
+def parse(category_domain, con: Connector):
     stats = Statistic()
     i = 0
-    with open(file, "r") as json_file:
-        for line in json_file:
-            try:
-                data = json.loads(line.strip())
-                stats.prod_count += 1
+    stats.prod_count = con.get_count('product', category_domain)
+    data = con.match_all(category_domain)
+    for d in data:
+        try:
+            stats.add_category(d['category'])
+            stats.submit_review(d)
+        except Exception as e:
+            print(e)
 
-                category = data["category"].split("|")[-1]
-                # print(name + " " + category)
-                if len(data["reviews"]) > 0:
-                    stats.add_category(category)
-                #stats.category_tree(data["category"])
-
-                for review in data["reviews"]:
-                    stats.reviews_count += 1
-                    stats.submit_review(category, review)
-                i += 1
-            except Exception as e:
-                print("[parse]")
-                print(e)
-                #return
-
-
-    file = file.split("/")[-1].split("_")[0]
-    stats.log(file)
+    stats.log(category_domain)
 
 
 def parse_actualized_data(path, categories):
@@ -341,12 +333,12 @@ def parse_actualized_data(path, categories):
         count_new = 0
         product_list = []
         f = Files(category)
-        with open(path +"/" + f.backup_name, "r") as backup_file:
+        with open(path + "/" + f.backup_name, "r") as backup_file:
             for line in backup_file:
                 o = json.loads(line[:-1])
                 product_list.append(o["name"])
 
-        with open(path +"/" + f.actualized_name, "r") as actualize_file:
+        with open(path + "/" + f.actualized_name, "r") as actualize_file:
             for line in actualize_file:
                 o = json.loads(line[:-1])
                 count += len(o["reviews"])
@@ -355,94 +347,89 @@ def parse_actualized_data(path, categories):
                     product_new += 1
                     count_new += len(o["reviews"])
 
-        print(category + " has: " + str(count) + " reviews, affected products: " + str(products)+", new products: " +str(product_new) +", new product`s reviews: "+str(count_new))
+        print(category + " has: " + str(count) + " reviews, affected products: " + str(
+            products) + ", new products: " + str(product_new) + ", new product`s reviews: " + str(count_new))
         count_all += count
         product_all += products
         product_new_all += product_new
         count_new_all += count_new
 
-    print("Total new reviews: " + str(count_all) + ", affected products: "+str(product_all)+", new products: " +str(product_new_all) +", new product`s reviews: "+str(count_new_all))
+    print(
+        "Total new reviews: " + str(count_all) + ", affected products: " + str(product_all) + ", new products: " + str(
+            product_new_all) + ", new product`s reviews: " + str(count_new_all))
 
 
-def histogram(path, categories):
-    for category in categories:
-        try:
-            cat_d = {}
-            print(category)
-            f = Files(category)
-            with open(path +"/" + f.reviews_name, "r") as file:
-                for line in file:
-                    product_d = json.loads(line[:-1])
-                    product_category = product_d["name"].split("(")[-1][:-1]
-                    revs = len(product_d["reviews"])
-                    if product_category not in cat_d:
-                        cat_d[product_category] = revs
-                    else:
-                        cat_d[product_category] += revs
+def histogram(category: str, con: Connector, numb_cat: int):
+    try:
+        print(category)
+        data = con.get_subcategories_count(category)
 
-            print("category count " + str(len(cat_d.items())))
-            print("TOP 10 categories")
-            cat_l = [(k, cat_d[k]) for k in sorted(cat_d, key=cat_d.get, reverse=True)]
-            # print top 10
-            for i in range(0,10):
-                cat, count = cat_l[i]
-                print("* "+cat + ": "+str(count))
+        print("category count " + str(len(data)))
+        print("TOP 10 categories")
+        # print top 10
+        for i in range(0, 10):
+            cat, count = data[i]
+            print("* " + cat + ": " + str(count))
+        print("\n")
 
-            print("\n")
+        # just top 100
+        data = data[:numb_cat]
+        plt.title('[' + category + '] Histogram of reviews between categories')
+        plt.ylabel('review counts')
+        plt.xlabel('categories')
+        plt.bar([i for i, _ in enumerate(data)], [value for _, value in data], color='g')
+        #plt.show()
+        plt.savefig("../statistics/" + category + '_hist.png')
+        plt.clf()
 
-            cat_numb = {}
-            i = 0
-            # just top 100 categories
-            for k, v in cat_l:
-                cat_numb[i] = v
-                i += 1
-                if i == 100:
-                    break
+    except Exception as e:
+        print("[histogram-" + category + "] Error: " + str(e))
 
-            plt.title('[' + f.category + '] Histogram of reviews between categories')
-            plt.ylabel('review counts')
-            plt.xlabel('categories')
-            plt.bar(list(cat_numb.keys()), cat_numb.values(), color='g')
-            plt.savefig("../statistics/"+f.category +'_hist.png')
-            plt.clf()
-
-        except Exception as e:
-            print("[histogram-" + category + "] Error: " +str(e))
 
 def main():
-    parser = argparse.ArgumentParser(description="Compute statistics")
-    #parser.add_argument("-old", action="store_true", help="Old data format")
-    parser.add_argument("-actualize", action="store_true", help="Statistics from actualized data")
-    parser.add_argument("-histogram", action="store_true", help="Create histogram of count of rev for each category")
+    domain = {
+        'el': 'Elektronika',
+        'bz': 'Bile zbozi',
+        'daz': 'Dum a zahrada',
+        'chv': 'Chovatelstvi',
+        'am': 'Auto-moto',
+        'dz': 'Detske zbozi',
+        'om': 'Obleceni a moda',
+        'fkh': 'Filmy, knihy, hry',
+        'kaz': 'Kosmetika a zdravi',
+        'sp': 'Sport',
+        'hob': 'Hobby',
+        'jan': 'Jidlo a napoje',
+        'svb': 'Stavebniny',
+        'sex': 'Sexualni a eroticke pomucky',
+    }
 
-    requiredNamed = parser.add_argument_group('required named arguments')
-    requiredNamed.add_argument('-path',  help='Path to the database', required=True)
-    args = parser.parse_args()
+    parser_arg = argparse.ArgumentParser(description="Compute statistics")
+    parser_arg.add_argument('-hi', "--histogram", default=0, type=int,
+                            help="Create histogram of count of rev for each category")
+    parser_arg.add_argument('-s', "--statistic", help="Statistics from elastic data "
+                            , action='store_true')
 
-    categories = [
-        'Elektronika',
-        'Bile zbozi',
-        'Dum a zahrada',
-        'Chovatelstvi',
-        'Auto-moto',
-        'Detske zbozi',
-        'Obleceni a moda',
-        'Filmy, knihy, hry',
-        'Kosmetika a zdravi',
-        'Sport',
-        'Hobby',
-        'Jidlo a napoje',
-        'Stavebniny',
-        'Sexualni a eroticke pomucky'
-    ]
+    parser_arg.add_argument('-d', '--domain', help='Generate dataset from domain in.\n'
+                                                   + str(domain), required=True)
+    parser_arg.add_argument('-a', "--actualize", help="Statistics from ACTUALZE data ")
+    args = vars(parser_arg.parse_args())
 
-    if args.actualize:
-        parse_actualized_data(args.path, categories)
-    elif args.histogram:
-        histogram(args.path, categories)
-    else:
-        parse(args.path)
+    if args['domain'] not in domain:
+        print(args['domain'] + ' is not a valid option, see -h', file=sys.stderr)
+        sys.exit(1)
 
+    category = domain[args['domain']]
+
+    # Elastic
+    con = Connector()
+
+    if args['actualize']:
+        parse_actualized_data(args['actualize'], category)
+    elif args['histogram']:
+        histogram(category, con, args['histogram'])
+    elif args['statistic']:
+        parse(category, con)
 
 
 if __name__ == '__main__':
