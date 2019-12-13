@@ -68,54 +68,42 @@ def morpho(category):
                             log.write("\t" + val_str + " " + str(val) + "\n")
 
 
+def test12():
+    import random
+    from generate_dataset import statistics, Generator
+    negative_sentences = []
+    positive_sentences = []
+    with open('negative.txt') as file:
+        negative_sentences = [line[:-1] for line in file]
+    with open('positive.txt') as file:
+        positive_sentences = [line[:-1] for line in file]
+    random.shuffle(negative_sentences)
+    random.shuffle(positive_sentences)
+
+    neg_l = len(negative_sentences)
+    positive_sentences = positive_sentences[:neg_l]
+    statistics([positive_sentences, negative_sentences])
+    d = {
+        'bert': True,
+        'neuron': False,
+        'sentences': 2,
+        'equal_dataset': True,
+        'num_category': 1,
+    }
+    con = Connector()
+    gen = Generator('mall', con, d)
+    gen.bert([positive_sentences, negative_sentences])
+
+
 def main():
     con = Connector()
-    #res = con.es.search('domain', size=20)["hits"]
-    res = con.match_all('product')
-    print(len(res))
-    print(res[0])
-    #datetime_object = datetime.strptime('30. January 2019', '%d. %B %Y')
-    #print(datetime_object.strftime('%Y-%m-%d'))
-    #res = con.es.search('domain', size=20)["hits"]
-    #res = con.get_newest_review('Elektronika', 'Threadripper')
-    #print(res)
-    #res = con.get_review_by_product_author_timestr('Bile zbozi', 'Gillette Mach3 12 ks', 'Mirka', '11. November 2019')
-    #res = con.get_category_urls('Filmy, knihy, hry')
-    #res = con.get_product_by_name('Threadripper')
-    #print(res)
-    #print(res[0])
-    #print(len(res))
-    #doc = {
-    #    'author': 'kimchy',
-    #    'text': 'Elasticsearch: cool. bonsai cool.',
-    #    'timestamp': datetime.now(),
-    #}
-    #res = es.index(index="test", doc_type='test', id=1, body=doc)
-    #print(res['result'])
+    res = con.get_product_by_name('Gillette Mach3 12 ks')
+    print(res)
+    print('\n\n')
+    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
 
-    #res = es.index(index="bile_zbozi", doc_type='doc', body=doc)
-    #con.es.indices.refresh(index="domain")
-    #res = es.search(index="config", body={"query": {"match": {
+    print(res)
 
-    #    'name': {'query': 'Bile zbozi', "operator" : "and"}
-    #}}})
-
-    #res = con.get_reviews_from_subcategory('Bile zbozi', 'vysavace')
-    #print(res[:5])
-    #print(len(res))
-    #res = con.es.search(index="product", body={"query":{"match_all" : {}}})
-    #print(res['result'])
-    #indexes = { hit["_source"]["name"]:hit["_source"]["index"] for hit in res['hits']['hits']}
-
-    #print(indexes)
-    #res = con.get('domain', 1)
-    #print("Got %d Hits:" % res['hits']['total']['value'])
-    #for hit in res['hits']['hits']:
-    #    print(hit["_source"])
-
-    #es.indices.delete(index='bile_zbozi', ignore=[400, 404])
-    #es.indices.delete(index='product', ignore=[400, 404])
-    #es.indices.delete(index='domain', ignore=[400, 404])
 
 if __name__ == '__main__':
     main()

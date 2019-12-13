@@ -198,8 +198,9 @@ def statistics(dataset):
             sentence = sentence[:-1]
 
             for s in re.split(regex, sentence):
-                tokens += len(s.split())
-                sentences_per_line += 1
+                if s:
+                    tokens += len(s.split())
+                    sentences_per_line += 1
             tokens_per_line += tokens
 
         print("\t\t sentences per line "+str(( sentences_per_line / len(category_dataset))) )
@@ -244,6 +245,7 @@ def task_cls(generator: Generator):
 
 def reviews_nratings(generator:Generator, n_cat):
     try:
+        from time import sleep
         generator.is_summary = True
         generator.is_con = True
         generator.is_pro = True
@@ -255,6 +257,7 @@ def reviews_nratings(generator:Generator, n_cat):
             generator.rating = (x*delta, x*delta+delta)
             sentences = generator.get_sentences(generator.n_categories, True)
             d[str(x)] = sentences
+            sleep(1)
 
         if generator.is_equal:
             d_eq = {}
@@ -278,7 +281,7 @@ def reviews_nratings(generator:Generator, n_cat):
                     file.write(s)
 
     except Exception as e:
-        print("[task_cls] Exception: " + str(e))
+        print("[reviews_nratings] Exception: " + str(e))
 
 
 def main():
@@ -307,9 +310,9 @@ def main():
     parser.add_argument('-emb', '--embeddings', help='Generate dataset for embeddings with all sentences, 80-20',
                         action='store_true')
     parser.add_argument('-bi', '--bipolar', help='Generate dataset for sentiment classification +-',
-                        action='store_true')
+                        action='store_true', default=False)
     parser.add_argument('-rat', '--rating', help='Generate dataset for RATING classes according to review',
-                        default=5)
+                        default=5, type=int)
 
     parser.add_argument('-b', '--bert', help='Generate also data for Bert model (train.tsv, test.tsv, dev.tsv)',
                         action='store_true')

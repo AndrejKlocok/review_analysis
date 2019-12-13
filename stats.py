@@ -6,6 +6,7 @@ from dateutil import parser
 from matplotlib import pyplot as plt
 from matplotlib import style
 import sys
+import pandas as pd
 
 from utils.elastic_connector import Connector
 
@@ -386,6 +387,69 @@ def histogram(category: str, con: Connector, numb_cat: int):
         print("[histogram-" + category + "] Error: " + str(e))
 
 
+def parse_csv(file):
+    d = {
+        'reviews': {'Elektronika':[], 'Bile zbozi': [], 'Dum a zahrada': [], 'Chovatelstvi': [], 'Auto-moto': [],
+                  'Detske zbozi': [], 'Obleceni a moda': [], 'Filmy knihy hry': [], 'Kosmetika a zdravi':[],
+                  'Sport':[], 'Hobby':[], 'Jidlo a napoje': [], 'Stavebniny': [],
+                  'Sexualni a eroticke pomucky': [], 'Total': []},
+        'affected_products': {'Elektronika':[], 'Bile zbozi': [], 'Dum a zahrada': [], 'Chovatelstvi': [], 'Auto-moto': [],
+                  'Detske zbozi': [], 'Obleceni a moda': [], 'Filmy knihy hry': [], 'Kosmetika a zdravi':[],
+                  'Sport':[], 'Hobby':[], 'Jidlo a napoje': [], 'Stavebniny': [],
+                  'Sexualni a eroticke pomucky': [], 'Total': []},
+        'new_products': {'Elektronika':[], 'Bile zbozi': [], 'Dum a zahrada': [], 'Chovatelstvi': [], 'Auto-moto': [],
+                  'Detske zbozi': [], 'Obleceni a moda': [], 'Filmy knihy hry': [], 'Kosmetika a zdravi':[],
+                  'Sport':[], 'Hobby':[], 'Jidlo a napoje': [], 'Stavebniny': [],
+                  'Sexualni a eroticke pomucky': [], 'Total': []},
+        'new_product_reviews': {'Elektronika':[], 'Bile zbozi': [], 'Dum a zahrada': [], 'Chovatelstvi': [], 'Auto-moto': [],
+                  'Detske zbozi': [], 'Obleceni a moda': [], 'Filmy knihy hry': [], 'Kosmetika a zdravi':[],
+                  'Sport':[], 'Hobby':[], 'Jidlo a napoje': [], 'Stavebniny': [],
+                  'Sexualni a eroticke pomucky': [], 'Total': []},
+    }
+
+    dates = []
+
+    df = pd.read_csv(file)
+    for _, row in df.iterrows():
+        d['reviews'][row['category']].append(row['reviews'])
+        d['affected_products'][row['category']].append(row['affected_products'])
+        d['new_products'][row['category']].append(row['new_products'])
+        d['new_product_reviews'][row['category']].append(row['new_product_reviews'])
+        if row['date'] not in dates:
+            dates.append(row['date'])
+
+    if False:
+        for name_plot, plot_data in d.items():
+            style.use('ggplot')
+            plt.title(name_plot+' in time')
+            plt.ylabel('Count')
+            plt.xlabel('Date')
+
+            for category, values in plot_data.items():
+                if category == 'Total':
+                    continue
+                plt.plot(dates, values, label=category, marker='.')
+            # plt.show()
+            # plt.savefig(category_name + '_reviews.png')
+            plt.legend()
+            plt.show()
+            plt.clf()
+
+    # print Total revs, products
+    style.use('ggplot')
+    plt.title('Actualization statistics')
+    plt.ylabel('Count')
+    plt.xlabel('Date')
+
+    plt.plot(dates, d['reviews']['Total'], label='new_reviews', marker='.')
+    plt.plot(dates, d['new_products']['Total'], label='new_products', marker='.')
+    # plt.show()
+    # plt.savefig(category_name + '_reviews.png')
+    plt.legend()
+    plt.show()
+    plt.clf()
+
+
 def main():
     domain = {
         'el': 'Elektronika',
@@ -411,15 +475,18 @@ def main():
                             , action='store_true')
 
     parser_arg.add_argument('-d', '--domain', help='Generate dataset from domain in.\n'
-                                                   + str(domain), required=True)
+                                                   + str(domain))
     parser_arg.add_argument('-a', "--actualize", help="Statistics from ACTUALZE data ")
+    parser_arg.add_argument('-csv', "--csv", help="Statistics from CSV data ")
+
     args = vars(parser_arg.parse_args())
 
-    if args['domain'] not in domain:
+    if not args['csv'] and args['domain'] not in domain:
         print(args['domain'] + ' is not a valid option, see -h', file=sys.stderr)
         sys.exit(1)
 
-    category = domain[args['domain']]
+    if not args['csv']:
+        category = domain[args['domain']]
 
     # Elastic
     con = Connector()
@@ -430,6 +497,8 @@ def main():
         histogram(category, con, args['histogram'])
     elif args['statistic']:
         parse(category, con)
+    elif args['csv']:
+        parse_csv(args['csv'])
 
 
 if __name__ == '__main__':

@@ -193,6 +193,42 @@ class ReviewRating(DataProcessor):
         return examples
 
 
+class ReviewRating3(DataProcessor):
+    """Processor for the bipolar sentiment classification"""
+
+    def get_example_from_tensor_dict(self, tensor_dict):
+        """See base class."""
+        return InputExample(tensor_dict['idx'].numpy(),
+                            tensor_dict['sentence'].numpy().decode('utf-8'),
+                            None,
+                            str(tensor_dict['label'].numpy()))
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_labels(self):
+        """See base class."""
+        return ["0", "1", "2"]
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, i)
+            text_a = line[3]
+            label = line[1]
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+        return examples
+
+
 def convert_examples_to_features(examples, label_list, max_seq_length,
                                  tokenizer, output_mode,
                                  cls_token_at_end=False, pad_on_left=False,
@@ -350,12 +386,26 @@ def compute_metrics(task_name, preds, labels):
         raise KeyError(task_name)
 
 
+def compute_metrics(task_name, preds, labels):
+    assert len(preds) == len(labels)
+    if task_name == "bipolar":
+        return metrics(preds, labels, 'binary')
+    elif task_name == "rating":
+        return metrics(preds, labels, 'weighted')
+    elif task_name == "rating3":
+        return metrics(preds, labels, 'weighted')
+    else:
+        raise KeyError(task_name)
+
+
 processors = {
     "bipolar": BipolarSentiment,
     'rating': ReviewRating,
+    'rating3': ReviewRating3
 }
 
 output_modes = {
     "bipolar": "classification",
     "rating": "classification",
+    "rating3": "classification",
 }
