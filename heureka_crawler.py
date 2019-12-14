@@ -48,7 +48,6 @@ class HeurekaCrawler:
         '''
 
         try:
-            # najde div s celou diskuzi
             review_list = infile.find(class_="product-review-list")
 
             # if True then we parsed all product reviews, else we need to go on
@@ -68,7 +67,7 @@ class HeurekaCrawler:
                 try:
                     infile = BeautifulSoup(urlopen(product.get_url() + ref), "lxml")
                 except IOError:
-                    print("[get_source_code] Cant open " + product.get_url() + ref, file=sys.stderr)
+                    print("[parse_product_page] Cant open " + product.get_url() + ref, file=sys.stderr)
 
                 review_list = infile.find(class_="product-review-list")
                 # parse revies on page
@@ -85,7 +84,7 @@ class HeurekaCrawler:
                     ref = None
 
         except Exception as e:
-            print("[get_source_code] Exception for " + product.get_url())
+            print("[parse_product_page] Exception for " + product.get_url())
 
     def parse_review(self, rev) -> Review:
         """
@@ -151,10 +150,84 @@ class HeurekaCrawler:
                 # else append review to product
                 product.add_review(review)
         except Exception as e:
-            print("[formate_text] Error: " + product.get_name() + " " + str(e))
+            print("[parse_product_revs] Error: " + product.get_name() + " " + str(e))
             pass
 
         return False
+
+    def parse_shop_revs(self, review_list, category_domain):
+        def _get_str_pos(l):
+            s = []
+            for sentence in l:
+                s.append([str(wb) for wb in sentence])
+            return s
+
+        def _cons_pros(xml):
+            l_ = l_pos = []
+            if xml:
+                for pro in xml.find_all('li'):
+                    val = pro.get_text().strip()
+                    l_.append(val)
+                    l_pos.append(_get_str_pos(self.tagger.pos_tagging(val)))
+            return l_, l_pos
+
+        for review in review_list:
+            sum_xml = review.find('c-post__summary')
+            pros, pros_pos = _cons_pros(review.find(class_='c-attributes-list--pros'))
+            cons, cons_pos = _cons_pros(review.find(class_='c-attributes-list--cons'))
+            summary = sum_xml.get_text().strip() if sum_xml else ''
+            summary_pos = _get_str_pos(self.tagger.pos_tagging(summary))
+
+            r_d = {
+                'rev_author': review.find(class_='c-post__author').get_text(),
+                'rev_date': review.find(class_='c-post__publish-time').get('datetime').split()[0],
+                'rev_rec': 'YES' if review.find(class_='u-color-success') else 'NO',
+                'rating': review.find(class_='c-rating-widget__value').get_text().split()[0],
+                'summary': summary, 'summary_pos': summary_pos,
+                'pros': pros, 'pros_pos': pros_pos,
+                'cons': cons, 'cons_pos': cons_pos,
+                'domain': 'shop_review', 'category': category_domain,
+            }
+            r_d['rev_date_str'] = datetime.strptime(r_d['rev_date'], '%Y-%m-%d').strftime('%d. %B %Y')
+
+    def parse_shop_page(self, shop_list, category):
+
+        def _task_shop_parse(shop_url):
+            shop_xml = BeautifulSoup(urlopen(shop_url), "lxml")
+            review_list = shop_xml.find_all(class_='c-post')
+            self.parse_shop_revs(review_list, category)
+
+            # find section with new page
+            references = shop_xml.find(class_='c-pagination__controls').find("a")
+
+            return references.get('href') if references else None
+
+        for shop in shop_list:
+            try:
+                shop_url = 'https://obchody.heureka.cz' + shop.find(class_='c-shops-table__cell--rating').find('a').get(
+                    'href')
+                shop_name = shop.find(class_='c-shops-table__cell--name').find('a').get_text().strip()
+                shop_exit_url = shop.find(class_='c-shops-table__cell--name').find('a').get('href')
+                shop_info = shop.find(class_='c-shops-table__cell--info').find('p').get_text()
+
+                shop_d = {
+                    'name': shop_name,
+                    'url_review': shop_url,
+                    'url_shop': shop_exit_url,
+                    'info': shop_info,
+                    'domain': 'shop',
+                    'category': category
+                }
+
+                shop_ref = _task_shop_parse(shop_url)
+
+                # loop over footer with references to next pages
+                while shop_ref:
+                    shop_ref = _task_shop_parse('https://obchody.heureka.cz' + shop_ref)
+
+            except Exception as e:
+                print("[parse_shop_page] Error: " + shop_name + " " + str(e), file=sys.stderr)
+                pass
 
     def get_urls(self, category, string_to_append=""):
         categories_urls = []
@@ -207,7 +280,6 @@ class HeurekaCrawler:
             rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
             pro_pos = []
             cons_pos = []
-            summary_pos = []
 
             for pos in rev_dic["pros"]:
                 pro_pos.append(get_str_pos(self.tagger.pos_tagging(pos)))
@@ -398,6 +470,45 @@ class HeurekaCrawler:
         except Exception as e:
             print("[actualize] " + str(e), file=sys.stderr)
 
+    def task_shop(self, args):
+        # TODO refactor it seems same as product
+        d = {
+            'Elektronika': 'https://obchody.heureka.cz/elektronika/',
+            'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
+            'Dum a zahrada': 'https://obchody.heureka.cz/dum-zahrada/',
+            'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
+            'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
+            'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
+            'Filmy, knihy, hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
+            'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
+            'Sport': 'https://obchody.heureka.cz/sport/',
+            'Hobby': 'https://obchody.heureka.cz/hobby/',
+            'Jidlo a napoje': 'https://obchody.heureka.cz/jidlo-a-napoje/',
+            'Stavebniny': 'https://obchody.heureka.cz/stavebniny/',
+            'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
+        }
+
+        def _task_shop_page(url):
+            shop_page = BeautifulSoup(urlopen(url), "lxml")
+
+            shop_list = shop_page.find_all(class_="c-shops-table__row")
+            self.parse_shop_page(shop_list, category)
+
+            # find section with new page
+            references = shop_page.find(class_='c-pagination__controls').find("a")
+
+            return references.get('href') if references else None
+
+        for category, url in d.items():
+            try:
+                page_ref = _task_shop_page(url)
+
+                while page_ref:
+                    page_ref = _task_shop_page('https://obchody.heureka.cz' + page_ref)
+
+            except Exception as e:
+                print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
+
     def task(self, category: str, args):
         # product list
         product_reviews = []
@@ -468,6 +579,7 @@ def main():
     parser.add_argument("-aspect", "--aspect", action="store_true", help="Get aspects from category specification")
     parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
     parser.add_argument("-path", "-path", help="Path to the dataset folder")
+    parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
 
     args = vars(parser.parse_args())
     # create tagger
@@ -493,8 +605,14 @@ def main():
         elif args['crawl']:
             # product reviews extraction
             crawler.task(category, args)
+        else:
+            break
 
         print(time.time() - start)
+
+    if args['shop']:
+        # crawl shop reviews
+        crawler.task_shop(args)
 
     if args['actualize']:
         # Logs

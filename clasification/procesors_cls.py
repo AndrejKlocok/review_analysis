@@ -27,7 +27,7 @@ import copy
 import json
 
 from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score, confusion_matrix
+from sklearn.metrics import matthews_corrcoef, f1_score, confusion_matrix, mean_squared_error
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ class InputExample(object):
         label: (Optional) string. The label of the example. This should be
         specified for train and dev examples, but not for test examples.
     """
+
     def __init__(self, guid, text_a, text_b=None, label=None):
         self.guid = guid
         self.text_a = text_a
@@ -102,6 +103,7 @@ class InputFeatures(object):
         token_type_ids: Segment token indices to indicate first and second portions of the inputs.
         label: Label corresponding to the input
     """
+
     def __init__(self, input_ids, input_mask, segment_ids, label_id):
         self.input_ids = input_ids
         self.input_mask = input_mask
@@ -193,8 +195,8 @@ class ReviewRating(DataProcessor):
         return examples
 
 
-class ReviewRating3(DataProcessor):
-    """Processor for the bipolar sentiment classification"""
+class ReviewRatingRegression(DataProcessor):
+    """Processor for the regression sentiment classification"""
 
     def get_example_from_tensor_dict(self, tensor_dict):
         """See base class."""
@@ -223,7 +225,7 @@ class ReviewRating3(DataProcessor):
         for (i, line) in enumerate(lines):
             guid = "%s-%s" % (set_type, i)
             text_a = line[3]
-            label = line[1]
+            label = float(line[1])
             examples.append(
                 InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
@@ -242,8 +244,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
         `cls_token_segment_id` define the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
     """
-
-    label_map = {label : i for i, label in enumerate(label_list)}
+    label_map = None
+    if output_mode != 'regression':
+        label_map = {label: i for i, label in enumerate(label_list)}
 
     features = []
     for (ex_index, example) in enumerate(examples):
@@ -328,17 +331,17 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
+                [str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
             logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
-                InputFeatures(input_ids=input_ids,
-                              input_mask=input_mask,
-                              segment_ids=segment_ids,
-                              label_id=label_id))
+            InputFeatures(input_ids=input_ids,
+                          input_mask=input_mask,
+                          segment_ids=segment_ids,
+                          label_id=label_id))
     return features
 
 
@@ -365,7 +368,7 @@ def metrics(preds, labels, average):
     acc = (preds == labels).mean()
     f1 = f1_score(labels, preds, average=average)
 
-    cnf = confusion_matrix(labels, preds) # tn, fp, fn, tp
+    cnf = confusion_matrix(labels, preds)  # tn, fp, fn, tp
     return {
         "acc": acc,
         "f1": f1,
@@ -376,14 +379,15 @@ def metrics(preds, labels, average):
     }
 
 
-def compute_metrics(task_name, preds, labels):
-    assert len(preds) == len(labels)
-    if task_name == "bipolar":
-        return metrics(preds, labels, 'binary')
-    elif task_name == "rating":
-        return metrics(preds, labels, 'weighted')
-    else:
-        raise KeyError(task_name)
+def metrics_regression(preds, labels):
+    pearson_corr = pearsonr(preds, labels)[0]
+    spearman_corr = spearmanr(preds, labels)[0]
+    mse = mean_squared_error(labels, preds)
+    return {
+        "mse": mse,
+        "corr": (pearson_corr + spearman_corr) / 2,
+
+    }
 
 
 def compute_metrics(task_name, preds, labels):
@@ -392,8 +396,8 @@ def compute_metrics(task_name, preds, labels):
         return metrics(preds, labels, 'binary')
     elif task_name == "rating":
         return metrics(preds, labels, 'weighted')
-    elif task_name == "rating3":
-        return metrics(preds, labels, 'weighted')
+    elif task_name == "rating_regression":
+        return metrics_regression(preds, labels)
     else:
         raise KeyError(task_name)
 
@@ -401,11 +405,11 @@ def compute_metrics(task_name, preds, labels):
 processors = {
     "bipolar": BipolarSentiment,
     'rating': ReviewRating,
-    'rating3': ReviewRating3
+    'rating_regression': ReviewRatingRegression
 }
 
 output_modes = {
     "bipolar": "classification",
     "rating": "classification",
-    "rating3": "classification",
+    "rating_regression": "regression",
 }

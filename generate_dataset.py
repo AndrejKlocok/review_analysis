@@ -23,19 +23,19 @@ class Generator:
         self.is_just_sentence = args['sentences']
         self.is_equal = args['equal_dataset']
         self.n_categories = args['num_category']
-        self.rating = (0, 100)
+        self.rating = False
+        self.idx = 0
 
     def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=20):
         data = self.__con.get_subcategories_count(self.__category)
         sentences = []
         for name, count in data[:top_categories]:
             print("Dataset of " + name + " with " + str(count) + " reviews")
+
             review_list = self.__con.get_reviews_from_subcategory(self.__category, name)
             for review in review_list:
                 review_sentences = []
-                rating = int(review['rating'][:-1])
-                if not (self.rating[0] <= rating <= self.rating[1]):
-                    continue
+                rating = round((int(review['rating'][:-1]))/100,3)
 
                 # write data TODO refactor this code
                 if self.is_pro:
@@ -43,8 +43,8 @@ class Generator:
                         sen = []
                         [self.__get_sentence(pro, sen, len_min, len_max) for pro in review["pros"]]
                         if sen:
-                            sen_txt = " ".join(s[:-1]for s in sen).strip()
-                            review_sentences.append(sen_txt+"\n")
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            review_sentences.append(sen_txt + "\n")
                     else:
                         [self.__get_sentence(pro, review_sentences, len_min, len_max) for pro in review["pros"]]
 
@@ -69,9 +69,18 @@ class Generator:
                         self.__get_sentence(review["summary"], review_sentences, len_min, len_max)
 
                 if self.is_just_sentence == 3 and review_sentences:
-                    sentences.append(" ".join(s[:-1] for s in review_sentences).strip()+"\n")
-                elif review_sentences:
-                    sentences += review_sentences
+                    review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
+
+                if self.rating:
+                    review_sentences = [(s, rating) for s in review_sentences]
+
+                sentences += review_sentences
+
+            self.idx += 1
+            if self.idx >= 500:
+                # scroll error
+                time.sleep(30)
+                self.idx = 0
         if shuffle:
             random.shuffle(sentences)
 
@@ -98,16 +107,20 @@ class Generator:
         count = int(n * ratio)
         return sentences[:count], sentences[count:]
 
-    def bert(self, s_list):
+    def bert(self, s_list, regression=False):
         try:
             all_sentences = []
             dev_size = 0.2
             test_size = 0.2
-            # add label
-            i = 0
-            for s_sentences in s_list:
-                all_sentences.append([(s[:-1], i) for s in s_sentences])
-                i+=1
+            if not regression:
+                # add label
+                i = 0
+                for s_sentences in s_list:
+                    all_sentences.append([(s[:-1], i) for s in s_sentences])
+                    i += 1
+            else:
+                for s_sentences in s_list:
+                    all_sentences.append([(s[:-1], rating) for s, rating in s_sentences])
 
             s_sentences_train = []
             s_sentences_test = []
@@ -115,7 +128,6 @@ class Generator:
                 strain, stest = self.__split_list(s_sentences, test_size)
                 s_sentences_train += strain
                 s_sentences_test += stest
-
 
             dataset = []
             dataset_train = []
@@ -203,7 +215,7 @@ def statistics(dataset):
                     sentences_per_line += 1
             tokens_per_line += tokens
 
-        print("\t\t sentences per line "+str(( sentences_per_line / len(category_dataset))) )
+        print("\t\t sentences per line " + str((sentences_per_line / len(category_dataset))))
         print("\t\t tokens per line " + str((tokens_per_line / len(category_dataset))))
         i += 1
 
@@ -243,23 +255,37 @@ def task_cls(generator: Generator):
         print("[task_cls] Exception: " + str(e))
 
 
-def reviews_nratings(generator:Generator, n_cat):
+def reviews_nratings(generator: Generator, n_cat):
     try:
         from time import sleep
         generator.is_summary = True
         generator.is_con = True
         generator.is_pro = True
+        generator.rating = True
         name = "dataset"
-
-        delta = int(100/n_cat)
+        regression = False
         d = {}
-        for x in range(0, n_cat):
-            generator.rating = (x*delta, x*delta+delta)
+
+        if n_cat > 1:
+            # TODO handle this for boxing according to [(sentence, rating)]
             sentences = generator.get_sentences(generator.n_categories, True)
-            d[str(x)] = sentences
-            sleep(1)
+            delta = int(100 / n_cat)
+            d = {}
+            for x in range(0, n_cat):
+                d[str(x)] = sentences
+                sleep(1)
+        else:
+            # regression task, need to sort sentences according to rating from 0 to 100
+            # sentences = sorted(sentences, key=lambda x:x[1], reverse=False)
+            sentences = generator.get_sentences(generator.n_categories, shuffle=True, len_min=1, len_max=30)
+            regression = True
+            for s, rating in sentences:
+                if rating not in d:
+                    d[rating] = []
+                d[rating].append((s, rating))
 
         if generator.is_equal:
+            # TODO handle this for boxing according to [(sentence, rating)], not needed for regression
             d_eq = {}
             min = len(d['0'])
             for key, value in d.items():
@@ -271,14 +297,22 @@ def reviews_nratings(generator:Generator, n_cat):
             d = d_eq
 
         if generator.is_bert:
-            l = [ val for _, val in d.items()]
-            generator.bert(l)
+            l = [val for _, val in d.items()]
+            generator.bert(l, regression)
 
-        statistics([ val for _, val in d.items()])
-        for key, value in d.items():
-            with open(name+'_'+key, 'w') as file:
-                for s in value:
-                    file.write(s)
+        if regression:
+            l = []
+            l_tmp = sorted(d)
+            for val in l_tmp:
+                l.append([s for s, rating in d[val]])
+            statistics(l)
+
+        else:
+            statistics([val for _, val in d.items()])
+            for key, value in d.items():
+                with open(name + '_' + key, 'w') as file:
+                    for s in value:
+                        file.write(s)
 
     except Exception as e:
         print("[reviews_nratings] Exception: " + str(e))
@@ -312,7 +346,7 @@ def main():
     parser.add_argument('-bi', '--bipolar', help='Generate dataset for sentiment classification +-',
                         action='store_true', default=False)
     parser.add_argument('-rat', '--rating', help='Generate dataset for RATING classes according to review',
-                        default=5, type=int)
+                        default=-1, type=int)
 
     parser.add_argument('-b', '--bert', help='Generate also data for Bert model (train.tsv, test.tsv, dev.tsv)',
                         action='store_true')
@@ -338,7 +372,7 @@ def main():
     # Elastic
     con = Connector()
 
-    if args['sentences'] >3:
+    if args['sentences'] > 3:
         print('--sentences out of scope, see --help', file=sys.stderr)
         sys.exit(1)
 

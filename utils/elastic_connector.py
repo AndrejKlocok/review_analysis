@@ -115,7 +115,7 @@ class Connector:
             # Init scroll by search
             data = self.es.search(
                 index=index,
-                scroll='2m',
+                scroll='30s',
                 size=self.max,
                 body=query
             )
@@ -126,7 +126,7 @@ class Connector:
 
             while scroll_size > 0:
                 out += [d["_source"] for d in data["hits"]["hits"]]
-                data = self.es.scroll(scroll_id=sid, scroll='2m')
+                data = self.es.scroll(scroll_id=sid, scroll='30s')
                 # Update the scroll ID
                 sid = data['_scroll_id']
                 # Get the number of results that returned in the last scroll
