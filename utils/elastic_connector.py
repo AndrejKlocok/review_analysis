@@ -16,7 +16,7 @@ class Connector:
             res = self.es.search('domain', size=20)["hits"]
             pass
 
-        self.domain = { hit["_source"]["name"]:hit["_source"]["domain"] for hit in res['hits']}
+        self.domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
         self.max = 10000
 
     def init_domains(self):
@@ -40,6 +40,8 @@ class Connector:
             'Stavebniny': 'stavebniny',
             'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
             "product": "product",
+            "shop": "shop",
+            "shop_review": "shop_review"
         }
 
         for k, v in indexes.items():
@@ -52,7 +54,7 @@ class Connector:
 
         self.es.indices.refresh(index="domain")
 
-    def index(self, index:str, doc:dict):
+    def index(self, index: str, doc: dict):
         try:
             res = self.es.index(index=index, doc_type='doc', body=doc)
             return res['result']
@@ -61,7 +63,7 @@ class Connector:
             print("[Connector-index] Error: " + str(e), file=sys.stderr)
             return None
 
-    def get_count(self, category:str, subcategory=None):
+    def get_count(self, category: str, subcategory=None):
         try:
             index = self.get_domain(category)
             if not subcategory:
@@ -115,7 +117,7 @@ class Connector:
             # Init scroll by search
             data = self.es.search(
                 index=index,
-                scroll='30s',
+                scroll='10s',
                 size=self.max,
                 body=query
             )
@@ -126,7 +128,7 @@ class Connector:
 
             while scroll_size > 0:
                 out += [d["_source"] for d in data["hits"]["hits"]]
-                data = self.es.scroll(scroll_id=sid, scroll='30s')
+                data = self.es.scroll(scroll_id=sid, scroll='10s')
                 # Update the scroll ID
                 sid = data['_scroll_id']
                 # Get the number of results that returned in the last scroll
@@ -141,7 +143,7 @@ class Connector:
     def match_all(self, category):
         try:
             index = self.domain[category]
-            body = {"query":{"match_all" : {}}}
+            body = {"query": {"match_all": {}}}
             return self.__scroll(index, body)
 
         except Exception as e:
@@ -252,7 +254,8 @@ class Connector:
     def get_newest_review(self, category, product_name):
         try:
             index = self.domain[category]
-            body = {"query": {"term": {"product_name.keyword": product_name}},"sort": [{"date": {"order": "desc"}}],"size": 1}
+            body = {"query": {"term": {"product_name.keyword": product_name}}, "sort": [{"date": {"order": "desc"}}],
+                    "size": 1}
             res = self.es.search(index, body)
             # just one
             return res["hits"]["hits"][0]["_source"]
@@ -266,22 +269,23 @@ class Connector:
         try:
             index = self.domain[category]
             body = {
-                "size": 1000,"query": {"bool": {"must": [{
-                                "bool": {"must": [
-                                        {"term": {"product_name.keyword": {"value": product_name,"boost": 1.0}}},
-                                        {"term": {"date_str.keyword": {"value": date_str,"boost": 1.0}}}
-                                    ],"adjust_pure_negative": True,"boost": 1.0}
-                            },
-                            {
-                                "term": {
-                                    "author.keyword": {
-                                        "value": author,
-                                        "boost": 1.0
-                                    }
-                                }}],"adjust_pure_negative": True,"boost": 1.0}},
-                "_source": {"includes": ["author","category","cons","cons_POS","date_str","domain","pro_POS","product_name",
-                                         "pros","rating","recommends","summary","summary_POS"],"excludes": []},
-                "docvalue_fields": [{"field": "date","format": "epoch_millis"}],"sort": [{"_doc": {"order": "asc"}}]
+                "size": 1000, "query": {"bool": {"must": [{
+                    "bool": {"must": [
+                        {"term": {"product_name.keyword": {"value": product_name, "boost": 1.0}}},
+                        {"term": {"date_str.keyword": {"value": date_str, "boost": 1.0}}}
+                    ], "adjust_pure_negative": True, "boost": 1.0}
+                },
+                    {
+                        "term": {
+                            "author.keyword": {
+                                "value": author,
+                                "boost": 1.0
+                            }
+                        }}], "adjust_pure_negative": True, "boost": 1.0}},
+                "_source": {"includes": ["author", "category", "cons", "cons_POS", "date_str", "domain", "pro_POS",
+                                         "product_name",
+                                         "pros", "rating", "recommends", "summary", "summary_POS"], "excludes": []},
+                "docvalue_fields": [{"field": "date", "format": "epoch_millis"}], "sort": [{"_doc": {"order": "asc"}}]
             }
             res = self.es.search(index, body)
             # just one
@@ -291,7 +295,74 @@ class Connector:
                 return None
 
         except Exception as e:
-            print("[match_review] Error: " + str(e), file=sys.stderr)
+            print("[get_review_by_product_author_timestr] Error: " + str(e), file=sys.stderr)
+            return None
+        pass
+
+    def get_review_by_shop_author_timestr(self, shop_name, author, date):
+        try:
+            index = 'shop_review'
+            body = {
+                "size": 1000,
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "bool": {
+                                    "must": [
+                                        {
+                                            "term": {
+                                                "shop_name.keyword": {
+                                                    "value": shop_name,
+                                                    "boost": 1.0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "term": {
+                                                "author.keyword": {
+                                                    "value": author,
+                                                    "boost": 1.0
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "adjust_pure_negative": True,
+                                    "boost": 1.0
+                                }
+                            },
+                            {
+                                "term": {
+                                    "date": {
+                                        "value": date,
+                                        "boost": 1.0
+                                    }
+                                }
+                            }
+                        ],
+                        "adjust_pure_negative": True,
+                        "boost": 1.0
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "author","pros", "pros_pos", "cons", "cons_pos", "summary_pos", "date",
+                        "date_str","delivery_time","domain","rating","recommends","shop_name","summary", "aspect"],
+                    "excludes": []
+                },
+                "docvalue_fields": [{"field": "date","format": "epoch_millis"}],
+                "sort": [{"_doc": {"order": "asc"}}]
+            }
+            res = self.es.search(index, body)
+
+            # just one
+            if res["hits"]["hits"]:
+                return res["hits"]["hits"][0]["_source"]
+            else:
+                return None
+
+        except Exception as e:
+            print("[get_review_by_shop_author_timestr] Error: " + str(e), file=sys.stderr)
             return None
         pass
 
@@ -300,9 +371,9 @@ class Connector:
             index = "product"
             body = {
                 "size": 1,
-                "query": {"term": {"product_name.keyword": {"value": product_name,"boost": 1.0}}},
+                "query": {"term": {"product_name.keyword": {"value": product_name, "boost": 1.0}}},
                 "_source": {
-                    "includes": ["category","category_list","domain","product_name","url"],
+                    "includes": ["category", "category_list", "domain", "product_name", "url"],
                     "excludes": []},
                 "sort": [{"_doc": {"order": "asc"}}]}
             res = self.es.search(index, body)
@@ -315,13 +386,33 @@ class Connector:
             print("[get_product_by_name] Error: " + str(e), file=sys.stderr)
             return None
 
+    def get_shop_by_name(self, shop_name):
+        try:
+            index = "shop"
+            body = {
+                "size": 1,
+                "query": {"term": {"name.keyword": {"value": shop_name, "boost": 1.0}}},
+                "_source": {
+                    "includes": ["name", "url_review", "domain", "url_shop", "info"],
+                    "excludes": []},
+                "sort": [{"_doc": {"order": "asc"}}]}
+            res = self.es.search(index, body)
+            # just one
+            if res["hits"]["hits"]:
+                return res["hits"]["hits"][0]["_source"]
+            else:
+                return None
+        except Exception as e:
+            print("[get_shop_by_name] Error: " + str(e), file=sys.stderr)
+            return None
+
     def get_category_urls(self, category_str):
         try:
             category = self.domain[category_str]
             print(category)
             body = {"size": 1000,
-                    "query": {"term": {"domain.keyword": {"value": category,"boost": 1.0}}},
-                    "_source": {"includes": ["url"],"excludes": []},"sort": [{"_doc": {"order": "asc"}}]}
+                    "query": {"term": {"domain.keyword": {"value": category, "boost": 1.0}}},
+                    "_source": {"includes": ["url"], "excludes": []}, "sort": [{"_doc": {"order": "asc"}}]}
             res = self.es.search("product", body)
             # just one
             return self.__scroll("product", body)
@@ -344,7 +435,7 @@ class Connector:
 
     def delete_product_by_domain(self, domain):
         try:
-            body = {"query": { "match": {"domain": domain}}}
+            body = {"query": {"match": {"domain": domain}}}
             res = self.es.delete_by_query("product", body)
             return res
 

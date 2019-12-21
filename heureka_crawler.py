@@ -155,7 +155,7 @@ class HeurekaCrawler:
 
         return False
 
-    def parse_shop_revs(self, review_list, category_domain):
+    def parse_shop_revs(self, review_list, shop_name):
         def _get_str_pos(l):
             s = []
             for sentence in l:
@@ -163,7 +163,8 @@ class HeurekaCrawler:
             return s
 
         def _cons_pros(xml):
-            l_ = l_pos = []
+            l_ = []
+            l_pos = []
             if xml:
                 for pro in xml.find_all('li'):
                     val = pro.get_text().strip()
@@ -171,60 +172,94 @@ class HeurekaCrawler:
                     l_pos.append(_get_str_pos(self.tagger.pos_tagging(val)))
             return l_, l_pos
 
+        r_d = {}
         for review in review_list:
-            sum_xml = review.find('c-post__summary')
-            pros, pros_pos = _cons_pros(review.find(class_='c-attributes-list--pros'))
-            cons, cons_pos = _cons_pros(review.find(class_='c-attributes-list--cons'))
-            summary = sum_xml.get_text().strip() if sum_xml else ''
-            summary_pos = _get_str_pos(self.tagger.pos_tagging(summary))
+            try:
+                sum_xml = review.find(class_='c-post__summary')
+                author_xml = review.find(class_='c-post__author')
+                rating_xml = review.find(class_='c-rating-widget__value')
+                pros, pros_pos = _cons_pros(review.find(class_='c-attributes-list--pros'))
+                cons, cons_pos = _cons_pros(review.find(class_='c-attributes-list--cons'))
+                summary = sum_xml.get_text().strip() if sum_xml else ''
+                summary_pos = _get_str_pos(self.tagger.pos_tagging(summary))
+                delivery_time_xml = review.find(class_='c-post__delivery-time')
+                date_obj = datetime.strptime(review.find(class_='c-post__publish-time').get('datetime'),
+                                             '%Y-%m-%d %H:%M:%S')
+                r_d = {
+                    'author': author_xml.get_text() if author_xml else 'author',
+                    'date': date_obj.isoformat(),
+                    'date_str': date_obj.strftime('%d. %B %Y'),
+                    'recommends': 'YES' if review.find(class_='u-color-success') else 'NO',
+                    'delivery_time': delivery_time_xml.get_text() if delivery_time_xml else str(0),
+                    'rating': rating_xml.get_text().split()[0] + '%' if rating_xml else '',
+                    'summary': summary, 'summary_pos': summary_pos,
+                    'pros': pros, 'pros_pos': pros_pos,
+                    'cons': cons, 'cons_pos': cons_pos,
+                    'domain': 'shop_review',
+                    'shop_name': shop_name,
+                    'aspect': [],
+                }
 
-            r_d = {
-                'rev_author': review.find(class_='c-post__author').get_text(),
-                'rev_date': review.find(class_='c-post__publish-time').get('datetime').split()[0],
-                'rev_rec': 'YES' if review.find(class_='u-color-success') else 'NO',
-                'rating': review.find(class_='c-rating-widget__value').get_text().split()[0],
-                'summary': summary, 'summary_pos': summary_pos,
-                'pros': pros, 'pros_pos': pros_pos,
-                'cons': cons, 'cons_pos': cons_pos,
-                'domain': 'shop_review', 'category': category_domain,
-            }
-            r_d['rev_date_str'] = datetime.strptime(r_d['rev_date'], '%Y-%m-%d').strftime('%d. %B %Y')
+                if not self.connector.get_review_by_shop_author_timestr(
+                        r_d['shop_name'], r_d['author'], r_d['date']):
+                    self.total_review_count += 1
+                    if not self.connector.index("shop_review", r_d):
+                        print("Review of " + shop_name + " " + " not created", file=sys.stderr)
+                #else:
+                    #return True
+            except Exception as e:
+                print("[parse_shop_revs] Error: " + shop_name + " " + str(r_d) + " " + str(e), file=sys.stderr)
+                pass
 
-    def parse_shop_page(self, shop_list, category):
+        return False
 
-        def _task_shop_parse(shop_url):
+    def parse_shop_page(self, shop_list):
+
+        def _task_shop_parse(shop_url, shop_name):
             shop_xml = BeautifulSoup(urlopen(shop_url), "lxml")
             review_list = shop_xml.find_all(class_='c-post')
-            self.parse_shop_revs(review_list, category)
+            # found existing review signal to end crawl
+            if self.parse_shop_revs(review_list, shop_name):
+                return  None
 
             # find section with new page
-            references = shop_xml.find(class_='c-pagination__controls').find("a")
+            references = shop_xml.find(class_='c-pagination').find(class_='c-pagination__button')
 
             return references.get('href') if references else None
 
         for shop in shop_list:
             try:
+                reviews = self.total_review_count
                 shop_url = 'https://obchody.heureka.cz' + shop.find(class_='c-shops-table__cell--rating').find('a').get(
                     'href')
                 shop_name = shop.find(class_='c-shops-table__cell--name').find('a').get_text().strip()
-                shop_exit_url = shop.find(class_='c-shops-table__cell--name').find('a').get('href')
-                shop_info = shop.find(class_='c-shops-table__cell--info').find('p').get_text()
+                shop_exit_url_xml = shop.find(class_='c-shops-table__cell--name').find('a')
+                shop_exit_url = shop_exit_url_xml.get('href') if shop_exit_url_xml else ''
+                shop_info_xml = shop.find(class_='c-shops-table__cell--info').find('p')
+                shop_info = shop_info_xml.get_text() if shop_info_xml else ''
+                shop_ref = None
 
-                shop_d = {
-                    'name': shop_name,
-                    'url_review': shop_url,
-                    'url_shop': shop_exit_url,
-                    'info': shop_info,
-                    'domain': 'shop',
-                    'category': category
-                }
+                if not self.connector.get_shop_by_name(shop_name):
+                    shop_d = {
+                        'name': shop_name,
+                        'url_review': shop_url,
+                        'url_shop': shop_exit_url,
+                        'info': shop_info,
+                        'domain': 'shop',
+                    }
+                    self.total_products_count += 1
+                    if not self.connector.index("shop", shop_d):
+                        print("Product of " + shop_name + " " + " not created")
 
-                shop_ref = _task_shop_parse(shop_url)
+                    shop_ref = _task_shop_parse(shop_url, shop_name)
+                else:
+                    print('Shop in db already '+str(shop_name))
 
                 # loop over footer with references to next pages
                 while shop_ref:
-                    shop_ref = _task_shop_parse('https://obchody.heureka.cz' + shop_ref)
+                    shop_ref = _task_shop_parse('https://obchody.heureka.cz' + shop_ref, shop_name)
 
+                print(shop_name + ' '+ str(self.total_review_count - reviews))
             except Exception as e:
                 print("[parse_shop_page] Error: " + shop_name + " " + str(e), file=sys.stderr)
                 pass
@@ -492,10 +527,10 @@ class HeurekaCrawler:
             shop_page = BeautifulSoup(urlopen(url), "lxml")
 
             shop_list = shop_page.find_all(class_="c-shops-table__row")
-            self.parse_shop_page(shop_list, category)
+            self.parse_shop_page(shop_list)
 
             # find section with new page
-            references = shop_page.find(class_='c-pagination__controls').find("a")
+            references = shop_page.find(class_='c-pagination').find(class_='c-pagination__button')
 
             return references.get('href') if references else None
 

@@ -97,12 +97,43 @@ def test12():
 
 def main():
     con = Connector()
-    res = con.get_product_by_name('Gillette Mach3 12 ks')
-    print(res)
-    print('\n\n')
-    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    #res = con.get_shop_by_name('test42')
+    #print(res)
+    #print('\n\n')
+    #res = con.get_product_by_name('Gillette Mach3 12 ks')
+    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    shop_d = {
+        'name': 'shop_name',
+        'url_review': 'shop_url',
+        'url_shop': 'shop_exit_url',
+        'info': 'shop_info',
+        'domain': 'shop',
+    }
+    #res = con.index('shop', shop_d)
+    #print(res)
 
+    r_d = {
+        'author': 'Andrej',
+        'date': '2011-10-17T16:43:41',
+        'recommends': 'YES' ,
+        'delivery_time': '0',
+        'rating': '100%',
+        'summary': 'jsem velmi spokojena', 'summary_pos': [],
+        'pros': [], 'pros_pos': [],
+        'cons': [], 'cons_pos': [],
+        'domain': 'shop_review',
+        'shop_name': 'test',
+        'aspect':[],
+    }
+    r_d['date_str'] = '17. October 2011'
+    #res = con.index('shop_review', r_d)
+    #print(res)
+    #return
+    res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
     print(res)
+    #res = con.match_all('shop_review')
+    #res = con.get_shop_by_name(shop_d['name'])
+    #print(res)
 
 
 if __name__ == '__main__':

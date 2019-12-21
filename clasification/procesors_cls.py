@@ -386,7 +386,6 @@ def metrics_regression(preds, labels):
     return {
         "mse": mse,
         "corr": (pearson_corr + spearman_corr) / 2,
-
     }
 
 

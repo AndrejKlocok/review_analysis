@@ -26,7 +26,7 @@ class Generator:
         self.rating = False
         self.idx = 0
 
-    def get_sentences(self, top_categories, shuffle=False, len_min=3, len_max=20):
+    def get_sentences(self, top_categories, shuffle=False, len_min=1, len_max=2):
         data = self.__con.get_subcategories_count(self.__category)
         sentences = []
         for name, count in data[:top_categories]:
@@ -93,7 +93,7 @@ class Generator:
             l = [s]
 
         for sentence in l:
-            if sentence and len_min < len(sentence.split()) < len_max and sentence.split()[0].isalpha():
+            if sentence and len_min <= len(sentence.split()) <= len_max and sentence.split()[0].isalpha():
                 # file.write(sentence.strip().capitalize() + ".\n")
                 sentence = sentence.strip().capitalize()
                 sentence = re.sub(r'\.{2,}', "", sentence)
