@@ -415,8 +415,9 @@ def parse_csv(file):
         d['affected_products'][row['category']].append(row['affected_products'])
         d['new_products'][row['category']].append(row['new_products'])
         d['new_product_reviews'][row['category']].append(row['new_product_reviews'])
-        if row['date'] not in dates:
-            dates.append(row['date'])
+        date_str = " ".join(row['date'].split()[:-1])
+        if date_str not in dates:
+            dates.append(date_str)
 
     if False:
         for name_plot, plot_data in d.items():

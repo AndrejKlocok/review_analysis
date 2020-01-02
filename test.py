@@ -68,32 +68,6 @@ def morpho(category):
                             log.write("\t" + val_str + " " + str(val) + "\n")
 
 
-def test12():
-    import random
-    from generate_dataset import statistics, Generator
-    negative_sentences = []
-    positive_sentences = []
-    with open('negative.txt') as file:
-        negative_sentences = [line[:-1] for line in file]
-    with open('positive.txt') as file:
-        positive_sentences = [line[:-1] for line in file]
-    random.shuffle(negative_sentences)
-    random.shuffle(positive_sentences)
-
-    neg_l = len(negative_sentences)
-    positive_sentences = positive_sentences[:neg_l]
-    statistics([positive_sentences, negative_sentences])
-    d = {
-        'bert': True,
-        'neuron': False,
-        'sentences': 2,
-        'equal_dataset': True,
-        'num_category': 1,
-    }
-    con = Connector()
-    gen = Generator('mall', con, d)
-    gen.bert([positive_sentences, negative_sentences])
-
 
 def main():
     con = Connector()
@@ -101,7 +75,7 @@ def main():
     #print(res)
     #print('\n\n')
     #res = con.get_product_by_name('Gillette Mach3 12 ks')
-    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
     shop_d = {
         'name': 'shop_name',
         'url_review': 'shop_url',
@@ -129,11 +103,12 @@ def main():
     #res = con.index('shop_review', r_d)
     #print(res)
     #return
-    res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
-    print(res)
+    #res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
+    #print(res)
     #res = con.match_all('shop_review')
     #res = con.get_shop_by_name(shop_d['name'])
-    #print(res)
+    #res = con.get_subcategories_count("Bile zbozi")
+    print(res)
 
 
 if __name__ == '__main__':

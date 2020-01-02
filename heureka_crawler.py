@@ -1,11 +1,10 @@
-# KNOT - discussions_download
-import json, time, sys, argparse, re
+import time, sys, argparse, re
 from datetime import datetime
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from datetime import date
 from utils.elastic_connector import Connector
-from utils.discussion import Files, Review, Product, Aspect, AspectCategory
+from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
 
 
@@ -47,20 +46,21 @@ class HeurekaCrawler:
         :return:
         '''
 
-        try:
-            review_list = infile.find(class_="product-review-list")
-
+        def _task_product_page(product_page_xml):
+            review_list = product_page_xml.find(class_="product-review-list")
             # if True then we parsed all product reviews, else we need to go on
             if self.parse_product_revs(review_list, product, category_domain):
                 return
 
             # find section with new page
-            references = review_list.find(class_="pag bot")
-            references = references.find("a", "next")
+            references = review_list.find(class_="pag bot").find("a", "next").references.get('href')
             if references:
-                ref = references.get('href')
+                return references.get('href')
             else:
-                ref = None
+                return None
+
+        try:
+            ref = _task_product_page(infile)
 
             # loop over footer with references to next pages
             while ref:
@@ -69,22 +69,10 @@ class HeurekaCrawler:
                 except IOError:
                     print("[parse_product_page] Cant open " + product.get_url() + ref, file=sys.stderr)
 
-                review_list = infile.find(class_="product-review-list")
-                # parse revies on page
-                if self.parse_product_revs(review_list, product, category_domain):
-                    return
-
-                # reference to next page
-                references = review_list.find(class_="pag bot").find("a", "next")
-
-                if references:
-                    ref = references.get('href')
-                # if there is no next page break while
-                else:
-                    ref = None
+                ref = _task_product_page(infile)
 
         except Exception as e:
-            print("[parse_product_page] Exception for " + product.get_url())
+            print("[parse_product_page] Exception: " + product.get_url())
 
     def parse_review(self, rev) -> Review:
         """
@@ -205,8 +193,8 @@ class HeurekaCrawler:
                     self.total_review_count += 1
                     if not self.connector.index("shop_review", r_d):
                         print("Review of " + shop_name + " " + " not created", file=sys.stderr)
-                #else:
-                    #return True
+                # else:
+                # return True
             except Exception as e:
                 print("[parse_shop_revs] Error: " + shop_name + " " + str(r_d) + " " + str(e), file=sys.stderr)
                 pass
@@ -220,7 +208,7 @@ class HeurekaCrawler:
             review_list = shop_xml.find_all(class_='c-post')
             # found existing review signal to end crawl
             if self.parse_shop_revs(review_list, shop_name):
-                return  None
+                return None
 
             # find section with new page
             references = shop_xml.find(class_='c-pagination').find(class_='c-pagination__button')
@@ -253,13 +241,13 @@ class HeurekaCrawler:
 
                     shop_ref = _task_shop_parse(shop_url, shop_name)
                 else:
-                    print('Shop in db already '+str(shop_name))
+                    print('Shop in db already ' + str(shop_name))
 
                 # loop over footer with references to next pages
                 while shop_ref:
                     shop_ref = _task_shop_parse('https://obchody.heureka.cz' + shop_ref, shop_name)
 
-                print(shop_name + ' '+ str(self.total_review_count - reviews))
+                print(shop_name + ' ' + str(self.total_review_count - reviews))
             except Exception as e:
                 print("[parse_shop_page] Error: " + shop_name + " " + str(e), file=sys.stderr)
                 pass
@@ -362,7 +350,6 @@ class HeurekaCrawler:
 
                         product_category = ""
 
-                        # posledny je nazov produktu
                         for a in p.find(id="breadcrumbs").find_all("a")[:-1]:
                             product_category += a.get_text() + " | "
                         product_obj.set_cateogry(product_category[:-2])
@@ -379,11 +366,8 @@ class HeurekaCrawler:
                                 break
                             continue
 
-                        # pokud uz je produkt vytvoren v aktualizovacim slovniku -> pouze pripojime
-                        # novejsi recenzi k te starsi
                         if product_name in obj_product_dict:
                             obj_product_dict[product_name].add_review(review)
-                        # jinak musime vytvorit novy zaznam
                         else:
                             obj_product_dict[product_name] = product_obj
 
@@ -392,17 +376,13 @@ class HeurekaCrawler:
                         print(category_url, file=sys.stderr)
                         pass
 
-                # ak je fast metoda tak pri najdeni existujucej recenze chceme odist z cyklu
                 if next_ref is None:
                     break
 
-                # najde sekci s odkazem na dalsi stranku
                 references = infile.find(class_="pag bot").find("a", "next")
 
-                # pokud nasel ..nacti odkaz.. pujdem na dalsi stranku
                 if references:
                     next_ref = references.get('href')
-                # jinak zadna dalsi stranka neexistuje.. proto bude konec
                 else:
                     next_ref = None
                     break
@@ -471,7 +451,7 @@ class HeurekaCrawler:
 
     def task_actualize(self, category: str, fast: bool):
         try:
-            print("Category: " + str(category))
+            # print("Category: " + str(category))
             actualized_dict_of_products = {}
 
             review_count = 0
@@ -506,7 +486,6 @@ class HeurekaCrawler:
             print("[actualize] " + str(e), file=sys.stderr)
 
     def task_shop(self, args):
-        # TODO refactor it seems same as product
         d = {
             'Elektronika': 'https://obchody.heureka.cz/elektronika/',
             'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
@@ -544,14 +523,15 @@ class HeurekaCrawler:
             except Exception as e:
                 print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
 
-    def task(self, category: str, args):
+    def task(self, category: str):
         # product list
         product_reviews = []
-        log_f = open(args['path'] + "/" + category, "w")
 
         # statistics
         review_count = 0
         products_count = 0
+        product_new_count = 0
+        review_new_count_new = 0
         try:
             with open("allCategories" + "/" + category + ".txt", 'r') as infile:
                 for line in infile:
@@ -585,14 +565,17 @@ class HeurekaCrawler:
                         # get reviews
                         self.parse_product_page(infile, product, category)
 
-                        # write some logs
-                        log_f.write(product.get_name() + "\t\t" + str(len(product.reviews)) + '\n')
-
                         # add product to parsed products
                         product_reviews.append(product.get_name())
 
                         # add to elastic
-                        self.add_to_elastic(product, category, products_count, review_count)
+                        p_n_c, r_n_c_n = self.add_to_elastic(product, category)
+                        product_new_count += p_n_c
+                        review_new_count_new += r_n_c_n
+                        self.total_review_count += review_count
+                        self.total_products_count += products_count
+                        self.total_review_new_count_new += review_new_count_new
+                        self.total_product_new_count += product_new_count
 
                     except IOError:
                         print("[task] Error: Cant open URL: ", url, file=sys.stderr)
@@ -602,15 +585,11 @@ class HeurekaCrawler:
         except Exception as e:
             print("[Task] " + e, file=sys.stderr)
 
-        finally:
-            log_f.close()
-
 
 def main():
     parser = argparse.ArgumentParser(
         description="Crawl Heureka reviews as defined in config.py, Expects existance of URLS file for every category")
     parser.add_argument("-actualize", "--actualize", action="store_true", help="Actualize reviews")
-    # parser.add_argument("-fast", action="store_true", help="Actualize reviews, when review exists breaks searching for category")
     parser.add_argument("-aspect", "--aspect", action="store_true", help="Get aspects from category specification")
     parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
     parser.add_argument("-path", "-path", help="Path to the dataset folder")
@@ -632,7 +611,7 @@ def main():
         if args['actualize']:
             # actualize reviews
             # always fast for now
-            crawler.task_actualize(category, True)  # args.fast)
+            crawler.task_actualize(category, True)
 
         elif args['aspect']:
             # aspect extraction

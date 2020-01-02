@@ -25,75 +25,92 @@ class Generator:
         self.n_categories = args['num_category']
         self.rating = False
         self.idx = 0
+        self.category = args['category']
+        self.len_min = 3
+        self.len_max = 20
 
-    def get_sentences(self, top_categories, shuffle=False, len_min=1, len_max=2):
+    def parse_reviews(self, cat_name, sentences):
+        review_list = self.__con.get_reviews_from_subcategory(self.__category, cat_name)
+        for review in review_list:
+            review_sentences = []
+            rating = round((int(review['rating'][:-1])) / 100, 3)
+
+            # write data TODO refactor this code
+            if self.is_pro:
+                if self.is_just_sentence >= 2:
+                    sen = []
+                    [self.__get_sentence(pro, sen) for pro in review["pros"]]
+                    if sen:
+                        sen_txt = " ".join(s[:-1] for s in sen).strip()
+                        review_sentences.append(sen_txt + "\n")
+                else:
+                    [self.__get_sentence(pro, review_sentences) for pro in review["pros"]]
+
+            if self.is_con:
+                if self.is_just_sentence >= 2:
+                    sen = []
+                    [self.__get_sentence(c, sen) for c in review["cons"]]
+                    if sen:
+                        sen_txt = " ".join(s[:-1] for s in sen).strip()
+                        review_sentences.append(sen_txt + "\n")
+                else:
+                    [self.__get_sentence(c, review_sentences) for c in review["cons"]]
+
+            if self.is_summary:
+                if self.is_just_sentence >= 2:
+                    sen = []
+                    self.__get_sentence(review["summary"], sen)
+                    if sen:
+                        sen_txt = " ".join(s[:-1] for s in sen).strip()
+                        review_sentences.append(sen_txt + "\n")
+                else:
+                    self.__get_sentence(review["summary"], review_sentences)
+
+            if self.is_just_sentence == 3 and review_sentences:
+                review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
+
+            if self.rating:
+                review_sentences = [(s, rating) for s in review_sentences]
+
+            sentences += review_sentences
+
+    def get_sentences(self, shuffle=False):
         data = self.__con.get_subcategories_count(self.__category)
         sentences = []
-        for name, count in data[:top_categories]:
-            print("Dataset of " + name + " with " + str(count) + " reviews")
+        # desired subcategory is selected
+        if self.category:
+            for name, count in data:
+                if name == self.category:
+                    print("Dataset of " + name + " with " + str(count) + " reviews")
+                    self.parse_reviews(name, sentences)
+                    break
+            if not sentences:
+                raise Exception('Category: {} not found.'.format(self.category))
+        # else according to top categories
+        else:
+            for name, count in data[:self.n_categories]:
+                print("Dataset of " + name + " with " + str(count) + " reviews")
+                self.parse_reviews(name, sentences)
 
-            review_list = self.__con.get_reviews_from_subcategory(self.__category, name)
-            for review in review_list:
-                review_sentences = []
-                rating = round((int(review['rating'][:-1]))/100,3)
+                self.idx += 1
+                if self.idx >= 500:
+                    # scroll error
+                    time.sleep(30)
+                    self.idx = 0
 
-                # write data TODO refactor this code
-                if self.is_pro:
-                    if self.is_just_sentence >= 2:
-                        sen = []
-                        [self.__get_sentence(pro, sen, len_min, len_max) for pro in review["pros"]]
-                        if sen:
-                            sen_txt = " ".join(s[:-1] for s in sen).strip()
-                            review_sentences.append(sen_txt + "\n")
-                    else:
-                        [self.__get_sentence(pro, review_sentences, len_min, len_max) for pro in review["pros"]]
-
-                if self.is_con:
-                    if self.is_just_sentence >= 2:
-                        sen = []
-                        [self.__get_sentence(c, sen, len_min, len_max) for c in review["cons"]]
-                        if sen:
-                            sen_txt = " ".join(s[:-1] for s in sen).strip()
-                            review_sentences.append(sen_txt + "\n")
-                    else:
-                        [self.__get_sentence(c, review_sentences, len_min, len_max) for c in review["cons"]]
-
-                if self.is_summary:
-                    if self.is_just_sentence >= 2:
-                        sen = []
-                        self.__get_sentence(review["summary"], sen, len_min, len_max)
-                        if sen:
-                            sen_txt = " ".join(s[:-1] for s in sen).strip()
-                            review_sentences.append(sen_txt + "\n")
-                    else:
-                        self.__get_sentence(review["summary"], review_sentences, len_min, len_max)
-
-                if self.is_just_sentence == 3 and review_sentences:
-                    review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
-
-                if self.rating:
-                    review_sentences = [(s, rating) for s in review_sentences]
-
-                sentences += review_sentences
-
-            self.idx += 1
-            if self.idx >= 500:
-                # scroll error
-                time.sleep(30)
-                self.idx = 0
         if shuffle:
             random.shuffle(sentences)
 
         return sentences
 
-    def __get_sentence(self, s: str, sentences: list, len_min, len_max, regex=r'[,.]'):
+    def __get_sentence(self, s: str, sentences: list, regex=r'[,.]'):
         if self.is_just_sentence == 0:
             l = re.split(regex, s)
         else:
             l = [s]
 
         for sentence in l:
-            if sentence and len_min <= len(sentence.split()) <= len_max and sentence.split()[0].isalpha():
+            if sentence and self.len_min <= len(sentence.split()) <= self.len_max and sentence.split()[0].isalpha():
                 # file.write(sentence.strip().capitalize() + ".\n")
                 sentence = sentence.strip().capitalize()
                 sentence = re.sub(r'\.{2,}', "", sentence)
@@ -158,24 +175,23 @@ class Generator:
                     dataset.append([i, label, 'a', s])
                     i += 1
 
-                for s, _ in s_sentences_train:
-                    dataset_train.append([i, s])
+                for s, label in s_sentences_train:
+                    dataset_train.append([i, label, 'a', s])
                     i += 1
 
                 random.shuffle(dataset)
                 random.shuffle(dataset_train)
 
-                bert_data_frame = pd.DataFrame(dataset, columns=['id', 'label', 'alpha', 'text'])
-                df_bert_train, df_bert_dev = train_test_split(bert_data_frame, test_size=dev_size)
+                df_bert_train = pd.DataFrame(dataset, columns=['id', 'label', 'alpha', 'text'])
 
                 # Creating test dataframe according to BERT
-                df_bert_test = pd.DataFrame(dataset_train, columns=['id', 'text'])
+                df_bert_dev = pd.DataFrame(dataset_train, columns=['id', 'label', 'alpha', 'text'])
                 # Saving dataframes to .tsv format as required by BERT
                 df_bert_train.to_csv('train.tsv', sep='\t', index=False, header=False)
                 df_bert_dev.to_csv('dev.tsv', sep='\t', index=False, header=False)
-                df_bert_test.to_csv('test.tsv', sep='\t', index=False, header=True)
+                #df_bert_test.to_csv('test.tsv', sep='\t', index=False, header=True)
         except Exception as e:
-            print("[bert] Exception: " + str(e))
+            print("[bert] Exception: " + str(e), file=sys.stderr)
 
 
 def task_emb(generator: Generator):
@@ -194,7 +210,7 @@ def task_emb(generator: Generator):
             f_train.close()
 
     except Exception as e:
-        print("[task_emb] Exception: " + str(e))
+        print("[task_emb] Exception: " + str(e), file=sys.stderr)
 
 
 def statistics(dataset):
@@ -226,10 +242,10 @@ def task_cls(generator: Generator):
         name = "dataset"
 
         generator.is_con = False
-        sentences_pro = generator.get_sentences(generator.n_categories, True)
+        sentences_pro = generator.get_sentences(True)
         generator.is_con = True
         generator.is_pro = False
-        sentences_con = generator.get_sentences(generator.n_categories, True)
+        sentences_con = generator.get_sentences(True)
 
         if generator.is_equal:
             l_pro = len(sentences_pro)
@@ -252,7 +268,7 @@ def task_cls(generator: Generator):
             [f_cons.write(s) for s in sentences_con]
 
     except Exception as e:
-        print("[task_cls] Exception: " + str(e))
+        print("[task_cls] Exception: " + str(e), file=sys.stderr)
 
 
 def reviews_nratings(generator: Generator, n_cat):
@@ -262,13 +278,15 @@ def reviews_nratings(generator: Generator, n_cat):
         generator.is_con = True
         generator.is_pro = True
         generator.rating = True
+        generator.len_min = 1
+        generator.len_max = 30
         name = "dataset"
         regression = False
         d = {}
 
         if n_cat > 1:
             # TODO handle this for boxing according to [(sentence, rating)]
-            sentences = generator.get_sentences(generator.n_categories, True)
+            sentences = generator.get_sentences(True)
             delta = int(100 / n_cat)
             d = {}
             for x in range(0, n_cat):
@@ -277,7 +295,7 @@ def reviews_nratings(generator: Generator, n_cat):
         else:
             # regression task, need to sort sentences according to rating from 0 to 100
             # sentences = sorted(sentences, key=lambda x:x[1], reverse=False)
-            sentences = generator.get_sentences(generator.n_categories, shuffle=True, len_min=1, len_max=30)
+            sentences = generator.get_sentences(shuffle=True)
             regression = True
             for s, rating in sentences:
                 if rating not in d:
@@ -315,7 +333,7 @@ def reviews_nratings(generator: Generator, n_cat):
                         file.write(s)
 
     except Exception as e:
-        print("[reviews_nratings] Exception: " + str(e))
+        print("[reviews_nratings] Exception: " + str(e), file=sys.stderr)
 
 
 def main():
@@ -359,8 +377,9 @@ def main():
                                                   + "2 -> whole section pro/con as one row\n"
                                                   + "3 -> whole review one row", type=int,
                         default=0)
-    parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=1)
+    parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=-1)
     parser.add_argument('-e', '--equal_dataset', help='Generate pos/neg equal size', action='store_true')
+    parser.add_argument('-c', '--category', help='Concrete category', type=str, default='')
 
     args = vars(parser.parse_args())
     if args['domain'] not in domain:
