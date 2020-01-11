@@ -68,14 +68,33 @@ def morpho(category):
                             log.write("\t" + val_str + " " + str(val) + "\n")
 
 
+def statistics_sentences():
+    d = {}
+    with open('tmp/dataset_negative.txt', 'r') as file:
+        for line in file:
+            if line[:-1] not in d:
+                d[line[:-1]] = 1
+            else:
+                d[line[:-1]] += 1
+    freq_sort = [(k, d[k]) for k in sorted(d, key=d.get, reverse=True)]
+    print('TOP sentences: ')
+    for k, v in freq_sort:
+        print(str(k) + ' | ' + str(v))
+        if v < 10:
+            break
+
+def test():
+    with open('irrelevant.tsv', 'w') as file:
+        for i in range(500):
+            file.write(str(i)+'\t'+'0'+'\ta\t\n')
 
 def main():
     con = Connector()
-    #res = con.get_shop_by_name('test42')
-    #print(res)
-    #print('\n\n')
-    #res = con.get_product_by_name('Gillette Mach3 12 ks')
-    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    # res = con.get_shop_by_name('test42')
+    # print(res)
+    # print('\n\n')
+    res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
+    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
     shop_d = {
         'name': 'shop_name',
         'url_review': 'shop_url',
@@ -83,13 +102,13 @@ def main():
         'info': 'shop_info',
         'domain': 'shop',
     }
-    #res = con.index('shop', shop_d)
-    #print(res)
+    # res = con.index('shop', shop_d)
+    # print(res)
 
     r_d = {
         'author': 'Andrej',
         'date': '2011-10-17T16:43:41',
-        'recommends': 'YES' ,
+        'recommends': 'YES',
         'delivery_time': '0',
         'rating': '100%',
         'summary': 'jsem velmi spokojena', 'summary_pos': [],
@@ -97,18 +116,19 @@ def main():
         'cons': [], 'cons_pos': [],
         'domain': 'shop_review',
         'shop_name': 'test',
-        'aspect':[],
+        'aspect': [],
     }
     r_d['date_str'] = '17. October 2011'
-    #res = con.index('shop_review', r_d)
-    #print(res)
-    #return
-    #res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
-    #print(res)
-    #res = con.match_all('shop_review')
-    #res = con.get_shop_by_name(shop_d['name'])
-    #res = con.get_subcategories_count("Bile zbozi")
+    # res = con.index('shop_review', r_d)
+    # print(res)
+    # return
+    # res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
+    # print(res)
+    # res = con.match_all('shop_review')
+    # res = con.get_shop_by_name(shop_d['name'])
+    # res = con.get_subcategories_count("Bile zbozi")
     print(res)
+
 
 
 if __name__ == '__main__':

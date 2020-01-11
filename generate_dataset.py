@@ -26,8 +26,8 @@ class Generator:
         self.rating = False
         self.idx = 0
         self.category = args['category']
-        self.len_min = 3
-        self.len_max = 20
+        self.len_min = args['min']
+        self.len_max = args['max']
 
     def parse_reviews(self, cat_name, sentences):
         review_list = self.__con.get_reviews_from_subcategory(self.__category, cat_name)
@@ -189,7 +189,6 @@ class Generator:
                 # Saving dataframes to .tsv format as required by BERT
                 df_bert_train.to_csv('train.tsv', sep='\t', index=False, header=False)
                 df_bert_dev.to_csv('dev.tsv', sep='\t', index=False, header=False)
-                #df_bert_test.to_csv('test.tsv', sep='\t', index=False, header=True)
         except Exception as e:
             print("[bert] Exception: " + str(e), file=sys.stderr)
 
@@ -380,6 +379,8 @@ def main():
     parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=-1)
     parser.add_argument('-e', '--equal_dataset', help='Generate pos/neg equal size', action='store_true')
     parser.add_argument('-c', '--category', help='Concrete category', type=str, default='')
+    parser.add_argument('-max', '--max', help='Maximum length of words', type=int, default=20)
+    parser.add_argument('-min', '--min', help='Minimum length of words', type=int, default=3)
 
     args = vars(parser.parse_args())
     if args['domain'] not in domain:

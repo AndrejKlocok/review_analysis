@@ -41,14 +41,19 @@ def mse(data_path):
     for index, row in df_result.iterrows():
         if row['label'] not in d:
             d[row['label']] = []
-        d[row['label']].append(row['prediction'])
+        if len(d[row['label']]) < 93:
+            d[row['label']].append(row['prediction'])
 
     for key, value in d.items():
         key_l = [key]*len(value)
         mse = mean_squared_error(key_l, value)
+        max_value = max(value)
+        min_value = min(value)
         ret = {
             "cat": key,
             "mse": mse,
+            "max": max_value,
+            "min": min_value
         }
         print(ret)
 
