@@ -93,8 +93,8 @@ def main():
     # res = con.get_shop_by_name('test42')
     # print(res)
     # print('\n\n')
-    res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
-    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    #res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
+    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
     shop_d = {
         'name': 'shop_name',
         'url_review': 'shop_url',

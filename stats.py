@@ -438,12 +438,12 @@ def parse_csv(file):
 
     # print Total revs, products
     style.use('ggplot')
-    plt.title('Actualization statistics')
-    plt.ylabel('Count')
-    plt.xlabel('Date')
+    plt.title('Priebeh aktualizácie')
+    plt.ylabel('Počet')
+    plt.xlabel('Dátum')
 
-    plt.plot(dates, d['reviews']['Total'], label='new_reviews', marker='.')
-    plt.plot(dates, d['new_products']['Total'], label='new_products', marker='.')
+    plt.plot(dates, d['reviews']['Total'], label='nové_recenzie', marker='.')
+    plt.plot(dates, d['new_products']['Total'], label='nové_produkty', marker='.')
     # plt.show()
     # plt.savefig(category_name + '_reviews.png')
     plt.legend()
