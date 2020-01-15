@@ -86,20 +86,20 @@ def main():
     args = parser.parse_args()
 
     categories = [
-        # 'Elektronika',
-        # 'Bile zbozi',
-        # 'Dum a zahrada',
-        # 'Chovatelstvi',
-        # 'Auto-moto',
-        # 'Detske zbozi',
-        # 'Obleceni a moda',
+        'Elektronika',
+        'Bile zbozi',
+        'Dum a zahrada',
+        'Chovatelstvi',
+        'Auto-moto',
+        'Detske zbozi',
+        'Obleceni a moda',
         'Filmy, knihy, hry',
-        # 'Kosmetika a zdravi',
-        # 'Sport',
-        # 'Hobby',
-        # 'Jidlo a napoje',
-        # 'Stavebniny',
-        # 'Sexualni a eroticke pomucky'
+        'Kosmetika a zdravi',
+        'Sport',
+        'Hobby',
+        'Jidlo a napoje',
+        'Stavebniny',
+        'Sexualni a eroticke pomucky'
     ]
     for category in categories:
         start = time.time()
