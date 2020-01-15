@@ -43,7 +43,6 @@ class Files:
                     file_lines[c].append(line)
                 except:
                     pass
-        # posledna kategoria bude nekompletna, tak ju zmazem
         file_lines.pop(categories[-1])
         categories = categories[:-1]
 
@@ -108,15 +107,15 @@ class HeurekaIndex():
 
     def parse_products(self, product, files: Files, stats: Statistics):
         prod: BeautifulSoup = product.find(class_="review-count")
-        # pokud produkt neobsahuje recenze.. zapisem aspon jeho adresu do specialniho souboru
+
         if not prod:
             files.url_rest_out.write(product.find("a").get("href") + "\n")
-        # jinak zpracuj dal
+
         else:
             files.outfile.write(prod.find("a").get("href") + "\n")
-            # ziska pocet recenzi
+
             rev_count = int(prod.get_text().split()[0])
-            # Maximum zobrazenych recenzi je 500
+
             if rev_count > 500:
                 stats.add(reviews_count=rev_count, reviews_reachable=500, products_count=1)
             else:
@@ -134,13 +133,12 @@ class HeurekaIndex():
         prod: BeautifulSoup = BeautifulSoup(urlopen(href), "lxml")
         rev: BeautifulSoup = prod.find(class_="review-count delimiter-blank")
 
-        # recenze nenalezeny
         if not rev:
             files.url_rest_out.write(href + "\n")
-        # jinak zpracuj dal
+
         else:
             files.outfile.write(href + "\n")
-            # Maximum zobrazenych recenzi je 500
+
             rev_count = int(rev.find("span").get_text())
             if rev_count > 500:
                 stats.add(reviews_count=rev_count, reviews_reachable=500, products_count=1)
@@ -148,6 +146,28 @@ class HeurekaIndex():
                 stats.add(reviews_count=rev_count, reviews_reachable=rev_count, products_count=1)
 
     def parse_domain(self, catlist: BeautifulSoup, files: Files, main_category: str, stats: Statistics):
+        def _parse_category():
+            if main_category == "Obleceni a moda":
+                products = infile.find_all(class_="p")
+                for product in products:
+                    try:
+                        self.parse_fashion_products(product, files, item_stats)
+                    except:
+                        print(
+                            "[parse_domain] Error in product " + product.find(class_="image").find(
+                                "a").get("href"),
+                            file=sys.stderr)
+                        pass
+            else:
+                products = infile.find_all(class_="rw")
+                for product in products:
+                    try:
+                        self.parse_products(product, files, item_stats)
+                    except:
+                        print("[parse_domain] Error in product " + product.find("a").get("href"),
+                              file=sys.stderr)
+                        pass
+
         for cat in catlist:
             li = cat.find_all("li")
             # crawl categories
@@ -159,7 +179,7 @@ class HeurekaIndex():
                 item_stats: Statistics = Statistics()
                 category = item.find("a").get("href")
 
-                # categorie uz byla analyzovana
+                # already analyzed category
                 if files.crawled_categories:
                     tmp = category.split("//")[1].split(".")[0]
                     if tmp in files.crawled_categories:
@@ -167,44 +187,16 @@ class HeurekaIndex():
                         continue
 
                 next = " "
-                # bude prochazet jednotlive stranky produktu dane kategorie a vytahovat z nich odkaz a pocet recenzi
+
                 while next:
                     try:
                         infile = BeautifulSoup(urlopen(category + next), "lxml")
-                        if main_category == "Obleceni a moda":
-                            products = infile.find_all(class_="p")
-                            for product in products:
-                                try:
-                                    self.parse_fashion_products(product, files, item_stats)
-                                except:
-                                    print(
-                                        "[get_recursively_urls] Error in product " + product.find(class_="image").find(
-                                            "a").get("href"),
-                                        file=sys.stderr)
-                                    pass
-                        else:
-                            products = infile.find_all(class_="rw")
-                            # projde vsecky produkty na dane strance
-                            for product in products:
-                                try:
-                                    self.parse_products(product, files, item_stats)
-                                except:
-                                    print("[get_recursively_urls] Error in product " + product.find("a").get("href"),
-                                          file=sys.stderr)
-                                    pass
-
-                        # najde odkaz na dalsi stranku
+                        _parse_category()
                         next = infile.find(class_="butt")
                         if next:
-                            next = next.find("a", "next")
-                            if next:
-                                next = next.get("href")
-                            # pokud nenasel odkaz, doslo se na posledni stranku -> konec cyklu
-                            else:
-                                next = None
-                        # pokud tam odkaz neni, znamena to, ze se neotevrela stranka s produkty, ale pouze stranka s dalsimi kategoriemi, je tedy nutne se zanorit o dalsi uroven -> rekurze
+                            next = next.find("a", "next").get("href")
                         else:
-                            # Obleceni a moda ma uz priamo koncove kategorie
+                            # Fasion has already final subcategories
                             if category != "Obleceni a moda":
                                 catlist = infile.find_all(class_="catlist")
                                 self.parse_domain(catlist, files, main_category, item_stats)

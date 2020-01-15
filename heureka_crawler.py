@@ -116,6 +116,7 @@ class HeurekaCrawler:
     def parse_product_revs(self, review_list, product: Product, category_domain):
         """
         Parse product reviews from :param review list and save them to product.
+        :param category_domain: domain of product category
         :param review_list: xml of page
         :param product: object that holds its reviews
         :return: True if the same review was found id DB, else False
@@ -144,6 +145,12 @@ class HeurekaCrawler:
         return False
 
     def parse_shop_revs(self, review_list, shop_name):
+        """
+        Parse shop reviews from :param review_list
+        :param review_list: xml of page
+        :param shop_name:
+        :return:
+        """
         def _get_str_pos(l):
             s = []
             for sentence in l:
@@ -202,6 +209,11 @@ class HeurekaCrawler:
         return False
 
     def parse_shop_page(self, shop_list):
+        """
+        Parse page with shop links
+        :param shop_list: xml
+        :return:
+        """
 
         def _task_shop_parse(shop_url, shop_name):
             shop_xml = BeautifulSoup(urlopen(shop_url), "lxml")
@@ -253,6 +265,12 @@ class HeurekaCrawler:
                 pass
 
     def get_urls(self, category, string_to_append=""):
+        """
+        Get all product subcategories from elastic under :param category
+        :param category:
+        :param string_to_append:
+        :return:
+        """
         categories_urls = []
         urls = self.connector.get_category_urls(category)
         for url_dic in urls:
@@ -267,6 +285,12 @@ class HeurekaCrawler:
         return categories_urls
 
     def add_to_elastic(self, product, category):
+        """
+        Index product, category object to elastic.
+        :param product:
+        :param category:
+        :return:
+        """
         def get_str_pos(l):
             s = []
             for sentence in l:
@@ -321,6 +345,13 @@ class HeurekaCrawler:
         return product_new_count, review_new_count_new
 
     def actualize_reviews(self, obj_product_dict, category_domain, fast: bool):
+        """
+        Method actualize every subcategory of main category domain
+        :param obj_product_dict: actualized objects of products
+        :param category_domain:
+        :param fast:
+        :return:
+        """
         categories_urls = self.get_urls(category_domain, "top-recenze/")
 
         for category_url in categories_urls:
@@ -388,6 +419,12 @@ class HeurekaCrawler:
                     break
 
     def task_seed_aspect_extraction(self, category: str, path: str):
+        """
+        Task extracts aspects from heureka category panel and save them to the dir.
+        :param category:
+        :param path:
+        :return:
+        """
         try:
 
             categories_urls = self.get_urls(category)
@@ -450,6 +487,12 @@ class HeurekaCrawler:
             print("[task_seed_aspect_extraction] Error " + str(e), file=sys.stderr)
 
     def task_actualize(self, category: str, fast: bool):
+        """
+        Task actualizes product reviews from main domain category.
+        :param category: domain category
+        :param fast:
+        :return:
+        """
         try:
             # print("Category: " + str(category))
             actualized_dict_of_products = {}
@@ -486,6 +529,11 @@ class HeurekaCrawler:
             print("[actualize] " + str(e), file=sys.stderr)
 
     def task_shop(self, args):
+        """
+        Task crawl shop reviews
+        :param args:
+        :return:
+        """
         d = {
             'Elektronika': 'https://obchody.heureka.cz/elektronika/',
             'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
@@ -524,6 +572,11 @@ class HeurekaCrawler:
                 print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
 
     def task(self, category: str):
+        """
+        Tast for product reviews crawling
+        :param category:
+        :return:
+        """
         # product list
         product_reviews = []
 
@@ -634,7 +687,7 @@ def main():
             crawler.total_products_count) + ", new products: " + str(
             crawler.total_product_new_count) + ", new product`s reviews: " + str(
             crawler.total_review_new_count_new))
-        # zapis datumu aktualizace
+
         with open("actualization_dates", "a") as act_dates:
             act_dates.write(date.today().strftime("%d. %B %Y").lstrip("0") + "\n")
 
