@@ -8,15 +8,15 @@ from collections import OrderedDict
 class Files:
     def __init__(self, category):
         self.category = category
-        self.url_rest_out = None
-        self.control_outfile = None
-        self.outfile = None
+        self.url_no_rev = None
+        self.url_log = None
+        self.url_file = None
         self.crawled_categories = None
 
     def __open(self, mode: str):
-        self.url_rest_out = open(self.category + "_url_rest_out.txt", mode)
-        self.control_outfile = open(self.category + "_control_url_out.txt", mode)
-        self.outfile = open(self.category + ".txt", mode)
+        self.url_no_rev = open(self.category + "_url_no_rev.txt", mode)
+        self.url_log = open(self.category + "_url_log.txt", mode)
+        self.url_file = open(self.category + ".txt", mode)
 
     def open_write(self):
         self.__open("w")
@@ -26,9 +26,9 @@ class Files:
         self.__open("a")
 
     def close(self):
-        self.outfile.close()
-        self.url_rest_out.close()
-        self.control_outfile.close()
+        self.url_file.close()
+        self.url_no_rev.close()
+        self.url_log.close()
 
     def get_crawled_categories(self) -> list:
         categories = []
@@ -109,10 +109,10 @@ class HeurekaIndex():
         prod: BeautifulSoup = product.find(class_="review-count")
 
         if not prod:
-            files.url_rest_out.write(product.find("a").get("href") + "\n")
+            files.url_no_rev.write(product.find("a").get("href") + "\n")
 
         else:
-            files.outfile.write(prod.find("a").get("href") + "\n")
+            files.url_file.write(prod.find("a").get("href") + "\n")
 
             rev_count = int(prod.get_text().split()[0])
 
@@ -134,10 +134,10 @@ class HeurekaIndex():
         rev: BeautifulSoup = prod.find(class_="review-count delimiter-blank")
 
         if not rev:
-            files.url_rest_out.write(href + "\n")
+            files.url_no_rev.write(href + "\n")
 
         else:
-            files.outfile.write(href + "\n")
+            files.url_file.write(href + "\n")
 
             rev_count = int(rev.find("span").get_text())
             if rev_count > 500:

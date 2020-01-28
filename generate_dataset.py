@@ -92,12 +92,6 @@ class Generator:
                 print("Dataset of " + name + " with " + str(count) + " reviews")
                 self.parse_reviews(name, sentences)
 
-                self.idx += 1
-                if self.idx >= 500:
-                    # scroll error
-                    time.sleep(30)
-                    self.idx = 0
-
         if shuffle:
             random.shuffle(sentences)
 

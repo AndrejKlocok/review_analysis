@@ -69,33 +69,22 @@ class Connector:
             if not subcategory:
                 res = self.es.count(index=index)['count']
             else:
-                subcategory_domain = self.get_domain(subcategory)
+                #subcategory_domain = self.get_domain(subcategory)
                 body = {
-                    "size": 0,
                     "query": {
                         "term": {
-                            "domain.keyword": {
-                                "value": subcategory_domain,
+                            "category.keyword": {
+                                "value": subcategory,
                                 "boost": 1.0
                             }
                         }
                     },
-                    "_source": False,
-                    "stored_fields": "_none_",
-                    "sort": [
-                        {
-                            "_doc": {
-                                "order": "asc"
-                            }
-                        }
-                    ],
-                    "track_total_hits": 2147483647
                 }
-                res = self.es.search(index=index, body=body)['hits']['total']['value']
+                res = self.es.count(index=index, body=body)['count']
 
             return res
         except Exception as e:
-            print("[Connector-index] Error: " + str(e), file=sys.stderr)
+            print("[get_count] Error: " + str(e), file=sys.stderr)
             return None
 
     def get_domain(self, category):
@@ -104,6 +93,15 @@ class Connector:
         except Exception as e:
             print("[get_domain] Error: " + str(e), file=sys.stderr)
             return None
+
+    def _get_data(self, category, subcategory, body):
+        index = self.domain[category]
+        cnt = self.get_count(category, subcategory)
+        if cnt > self.max:
+            return self.__scroll(index, body)
+        else:
+            res = self.es.search(index, body)
+            return [d["_source"] for d in res["hits"]["hits"]]
 
     def __scroll(self, index, query):
         """
@@ -142,9 +140,8 @@ class Connector:
 
     def match_all(self, category):
         try:
-            index = self.domain[category]
             body = {"query": {"match_all": {}}}
-            return self.__scroll(index, body)
+            return self._get_data(category, None, body)
 
         except Exception as e:
             print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
@@ -207,9 +204,8 @@ class Connector:
 
     def get_reviews_from_subcategory(self, category, subcategory):
         try:
-            index = self.domain[category]
             body = {
-                "size": 1000,
+                "size": 10000,
                 "query": {
                     "term": {
                         "category.keyword": {
@@ -244,7 +240,7 @@ class Connector:
                     }
                 ]
             }
-            return self.__scroll(index, body)
+            return self._get_data(category, subcategory, body)
 
         except Exception as e:
             print("[Connector-match_all] Error: " + str(e), file=sys.stderr)

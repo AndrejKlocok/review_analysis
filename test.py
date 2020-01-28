@@ -68,15 +68,18 @@ def morpho(category):
                             log.write("\t" + val_str + " " + str(val) + "\n")
 
 
-def statistics_sentences():
+def statistics_sentences(path):
     d = {}
-    with open('tmp/dataset_negative.txt', 'r') as file:
+    cnt = 0
+    with open(path, 'r') as file:
         for line in file:
             if line[:-1] not in d:
                 d[line[:-1]] = 1
             else:
                 d[line[:-1]] += 1
+            cnt += 1
     freq_sort = [(k, d[k]) for k in sorted(d, key=d.get, reverse=True)]
+    print('Sentences: ' + str(cnt))
     print('TOP sentences: ')
     for k, v in freq_sort:
         print(str(k) + ' | ' + str(v))
@@ -85,16 +88,20 @@ def statistics_sentences():
 
 def test():
     with open('irrelevant.tsv', 'w') as file:
-        for i in range(500):
+        for i in range(499, 2000):
             file.write(str(i)+'\t'+'0'+'\ta\t\n')
 
 def main():
     con = Connector()
+    statistics_sentences('dataset_negative.txt')
+    statistics_sentences('dataset_positive.txt')
+    return
+    #res = con.get_count('Bile zbozi', 'vysavace')
     # res = con.get_shop_by_name('test42')
     # print(res)
     # print('\n\n')
     #res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
-    res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
     shop_d = {
         'name': 'shop_name',
         'url_review': 'shop_url',
