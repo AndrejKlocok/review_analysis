@@ -6,10 +6,11 @@ from datetime import date
 from utils.elastic_connector import Connector
 from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
+from heureka_filter import HeurekaFilter
 
 
 class HeurekaCrawler:
-    def __init__(self, connector, tagger):
+    def __init__(self, connector, tagger, filter_model):
         self.categories = [
             'Elektronika',
             'Bile zbozi',
@@ -28,11 +29,13 @@ class HeurekaCrawler:
         ]
         self.connector = connector
         self.tagger = tagger
+        self.bert_filter = filter_model
 
         self.total_review_count = 0
         self.total_products_count = 0
         self.total_product_new_count = 0
         self.total_review_new_count_new = 0
+        self.total_empty_reviews = 0
 
         pass
 
@@ -80,6 +83,17 @@ class HeurekaCrawler:
         :param rev:
         :return:
         """
+
+        def _pro_cons(xml):
+            l = []
+            if xml:
+                for li in xml.find_all("li"):
+                    text = li.get_text()
+                    if self.bert_filter.is_irrelevant(text):
+                        continue
+                    review.add_pro(text)
+            return l
+
         review = Review()
         # author name
         author = rev.find("strong").get_text().strip()
@@ -98,18 +112,14 @@ class HeurekaCrawler:
         elif review_text.find(class_="recommend-no"):
             review.set_recommends("NO")
         # set pros
-        pros = review_text.find(class_="plus")
-        if pros:
-            for pro in pros.find_all("li"):
-                review.add_pro(pro.get_text())
+        review.set_pros(_pro_cons(review_text.find(class_="plus")))
         # set cons
-        cons = review_text.find(class_="minus")
-        if cons:
-            for con in cons.find_all("li"):
-                review.add_con(con.get_text())
+        review.set_cons(_pro_cons(review_text.find(class_="minus")))
         # set summary
         if review_text.p:
-            review.set_summary(review_text.p.get_text())
+            text = review_text.p.get_text()
+            if not self.bert_filter(text):
+                review.set_summary(text)
 
         return review
 
@@ -151,6 +161,7 @@ class HeurekaCrawler:
         :param shop_name:
         :return:
         """
+
         def _get_str_pos(l):
             s = []
             for sentence in l:
@@ -163,9 +174,17 @@ class HeurekaCrawler:
             if xml:
                 for pro in xml.find_all('li'):
                     val = pro.get_text().strip()
+                    if self.bert_filter.is_irrelevant(val):
+                        continue
                     l_.append(val)
                     l_pos.append(_get_str_pos(self.tagger.pos_tagging(val)))
             return l_, l_pos
+
+        def _summary(xml):
+            summary_text = xml.get_text().strip() if xml else ''
+            if summary_text and self.bert_filter.is_irrelevant(summary_text):
+                return [], []
+            return summary_text, _get_str_pos(self.tagger.pos_tagging(summary_text))
 
         r_d = {}
         for review in review_list:
@@ -175,8 +194,7 @@ class HeurekaCrawler:
                 rating_xml = review.find(class_='c-rating-widget__value')
                 pros, pros_pos = _cons_pros(review.find(class_='c-attributes-list--pros'))
                 cons, cons_pos = _cons_pros(review.find(class_='c-attributes-list--cons'))
-                summary = sum_xml.get_text().strip() if sum_xml else ''
-                summary_pos = _get_str_pos(self.tagger.pos_tagging(summary))
+                summary, summary_pos = _summary(sum_xml)
                 delivery_time_xml = review.find(class_='c-post__delivery-time')
                 date_obj = datetime.strptime(review.find(class_='c-post__publish-time').get('datetime'),
                                              '%Y-%m-%d %H:%M:%S')
@@ -194,19 +212,25 @@ class HeurekaCrawler:
                     'shop_name': shop_name,
                     'aspect': [],
                 }
+                # check if review is not empty
+                if not r_d['pros'] and not r_d['cons'] and not r_d['summary']:
+                    self.total_empty_reviews += 1
+                    continue
 
                 if not self.connector.get_review_by_shop_author_timestr(
                         r_d['shop_name'], r_d['author'], r_d['date']):
                     self.total_review_count += 1
                     if not self.connector.index("shop_review", r_d):
                         print("Review of " + shop_name + " " + " not created", file=sys.stderr)
-                # else:
-                # return True
+                else:
+                    return True
+
             except Exception as e:
                 print("[parse_shop_revs] Error: " + shop_name + " " + str(r_d) + " " + str(e), file=sys.stderr)
                 pass
 
         return False
+
 
     def parse_shop_page(self, shop_list):
         """
@@ -249,11 +273,11 @@ class HeurekaCrawler:
                     }
                     self.total_products_count += 1
                     if not self.connector.index("shop", shop_d):
-                        print("Product of " + shop_name + " " + " not created")
-
-                    shop_ref = _task_shop_parse(shop_url, shop_name)
+                        print("Shop of " + shop_name + " " + " not created")
                 else:
-                    print('Shop in db already ' + str(shop_name))
+                    print('Shop in db already ' + str(shop_name), file=sys.stderr)
+
+                shop_ref = _task_shop_parse(shop_url, shop_name)
 
                 # loop over footer with references to next pages
                 while shop_ref:
@@ -291,6 +315,7 @@ class HeurekaCrawler:
         :param category:
         :return:
         """
+
         def get_str_pos(l):
             s = []
             for sentence in l:
@@ -388,10 +413,8 @@ class HeurekaCrawler:
                         review = self.parse_review(rev)
                         product_obj.add_review(review)
 
-                        review_elastic = self.connector.get_review_by_product_author_timestr(category_domain,
-                                                                                             product_name_raw,
-                                                                                             review.author, review.date)
-                        if review_elastic:
+                        if self.connector.get_review_by_product_author_timestr(
+                                category_domain, product_name_raw, review.author, review.date):
                             if fast:
                                 next_ref = None
                                 break
@@ -435,7 +458,7 @@ class HeurekaCrawler:
                         page = BeautifulSoup(urlopen(url), "lxml")
                         breadcrumbs = ""
                         max_occurence = 0
-                        # posledny je nazov produktu
+
                         for a in page.find(id="breadcrumbs").find_all("a"):
                             breadcrumbs += a.get_text() + " | "
                         breadcrumbs = breadcrumbs[:-2]
@@ -452,7 +475,6 @@ class HeurekaCrawler:
                             xml_li = filter_element.find_all("li")
 
                             if non_script:
-                                # xml = BeautifulSoup(non_script, "lxml")
                                 xml_li = non_script.find_all("li")
                             val_list = []
                             for value in xml_li:
@@ -494,7 +516,6 @@ class HeurekaCrawler:
         :return:
         """
         try:
-            # print("Category: " + str(category))
             actualized_dict_of_products = {}
 
             review_count = 0
@@ -502,23 +523,23 @@ class HeurekaCrawler:
             product_new_count = 0
             review_new_count_new = 0
 
-            f_actualized = open(category + "_actualized.txt", "w")
             self.actualize_reviews(actualized_dict_of_products, category, fast)
             for _, product in actualized_dict_of_products.items():
                 # Statistics
                 products_count += 1
                 review_count += len(product.get_reviews())
-                # Save actualization file
-                f_actualized.write(str(product) + "\n")
 
                 # Save product elastic
                 p_n_c, r_n_c_n = self.add_to_elastic(product, category)
                 product_new_count += p_n_c
                 review_new_count_new += r_n_c_n
-            f_actualized.close()
-            print(category + " has: " + str(review_count) + " reviews, affected products: " + str(
-                products_count) + ", new products: " + str(product_new_count) + ", new product`s reviews: " + str(
-                review_new_count_new))
+
+            category = category.replace(',', '')
+            print(category + "," + str(review_count) + "," +
+                  str(products_count) + "," +
+                  str(product_new_count) + "," +
+                  str(review_new_count_new) + "," +
+                  date.today().strftime("%d. %B %Y").lstrip("0"))
 
             self.total_review_count += review_count
             self.total_products_count += products_count
@@ -536,18 +557,18 @@ class HeurekaCrawler:
         """
         d = {
             'Elektronika': 'https://obchody.heureka.cz/elektronika/',
-            'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
-            'Dum a zahrada': 'https://obchody.heureka.cz/dum-zahrada/',
-            'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
-            'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
-            'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
-            'Filmy, knihy, hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
-            'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
-            'Sport': 'https://obchody.heureka.cz/sport/',
-            'Hobby': 'https://obchody.heureka.cz/hobby/',
-            'Jidlo a napoje': 'https://obchody.heureka.cz/jidlo-a-napoje/',
-            'Stavebniny': 'https://obchody.heureka.cz/stavebniny/',
-            'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
+            #'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
+            #'Dum a zahrada': 'https://obchody.heureka.cz/dum-zahrada/',
+            #'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
+            #'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
+            #'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
+            #'Filmy, knihy, hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
+            #'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
+            #'Sport': 'https://obchody.heureka.cz/sport/',
+            #'Hobby': 'https://obchody.heureka.cz/hobby/',
+            #'Jidlo a napoje': 'https://obchody.heureka.cz/jidlo-a-napoje/',
+            #'Stavebniny': 'https://obchody.heureka.cz/stavebniny/',
+            #'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
         }
 
         def _task_shop_page(url):
@@ -655,8 +676,12 @@ def main():
 
     # Elastic
     con = Connector()
+
+    # Bert filter model
+    heureka_filter = HeurekaFilter('../model/bert_irelevant', 'irrelevant_sentences.txt')
+
     # Crawler
-    crawler = HeurekaCrawler(con, tagger)
+    crawler = HeurekaCrawler(con, tagger, heureka_filter)
 
     for category in crawler.categories:
         start = time.time()
@@ -675,21 +700,20 @@ def main():
         else:
             break
 
-        print(time.time() - start)
-
     if args['shop']:
         # crawl shop reviews
         crawler.task_shop(args)
 
-    if args['actualize']:
-        # Logs
-        print("Total" + str(crawler.total_review_count) + " reviews, affected products: " + str(
-            crawler.total_products_count) + ", new products: " + str(
-            crawler.total_product_new_count) + ", new product`s reviews: " + str(
-            crawler.total_review_new_count_new))
+    print(time.time() - start)
 
-        with open("actualization_dates", "a") as act_dates:
-            act_dates.write(date.today().strftime("%d. %B %Y").lstrip("0") + "\n")
+    if args['actualize'] or args['shop']:
+        # Logs
+        print("Total," + str(crawler.total_review_count) + "," +
+              str(crawler.total_products_count) + "," +
+              str(crawler.total_product_new_count) + "," +
+              str(crawler.total_review_new_count_new) + "," +
+              date.today().strftime("%d. %B %Y").lstrip("0"))
+        print('Empty revs : '+ str(crawler.total_empty_reviews))
 
 
 if __name__ == '__main__':
