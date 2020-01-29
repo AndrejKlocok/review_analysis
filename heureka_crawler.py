@@ -678,7 +678,7 @@ def main():
     con = Connector()
 
     # Bert filter model
-    heureka_filter = HeurekaFilter('../model/bert_irelevant', 'irrelevant_sentences.txt')
+    heureka_filter = HeurekaFilter('../model/bert_irelevant', '../irrelevant.tsv')
 
     # Crawler
     crawler = HeurekaCrawler(con, tagger, heureka_filter)
