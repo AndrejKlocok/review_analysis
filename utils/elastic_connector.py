@@ -10,10 +10,10 @@ class Connector:
         # connect to localhost
         self.es = Elasticsearch()
         try:
-            res = self.es.search('domain', size=20)["hits"]
+            res = self.es.search(index='domain', size=20)["hits"]
         except NotFoundError:
             self.init_domains()
-            res = self.es.search('domain', size=20)["hits"]
+            res = self.es.search(index='domain', size=20)["hits"]
             pass
 
         self.domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
@@ -32,7 +32,7 @@ class Connector:
             'Auto-moto': 'auto-moto',
             'Detske zbozi': 'detske_zbozi',
             'Obleceni a moda': 'obleceni_a_moda',
-            'Filmy, knihy, hry': 'filmy_knihy_hry',
+            'Filmy knihy hry': 'filmy_knihy_hry',
             'Kosmetika a zdravi': 'kosmetika_a_zdravi',
             'Sport': 'sport',
             'Hobby': 'hobby',
@@ -100,7 +100,7 @@ class Connector:
         if cnt > self.max:
             return self.__scroll(index, body)
         else:
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
             return [d["_source"] for d in res["hits"]["hits"]]
 
     def __scroll(self, index, query):
@@ -252,7 +252,7 @@ class Connector:
             index = self.domain[category]
             body = {"query": {"term": {"product_name.keyword": product_name}}, "sort": [{"date": {"order": "desc"}}],
                     "size": 1}
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
             # just one
             return res["hits"]["hits"][0]["_source"]
 
@@ -283,7 +283,7 @@ class Connector:
                                          "pros", "rating", "recommends", "summary", "summary_POS"], "excludes": []},
                 "docvalue_fields": [{"field": "date", "format": "epoch_millis"}], "sort": [{"_doc": {"order": "asc"}}]
             }
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
             # just one
             if res["hits"]["hits"]:
                 return res["hits"]["hits"][0]["_source"]
@@ -349,7 +349,7 @@ class Connector:
                 "docvalue_fields": [{"field": "date","format": "epoch_millis"}],
                 "sort": [{"_doc": {"order": "asc"}}]
             }
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
 
             # just one
             if res["hits"]["hits"]:
@@ -372,7 +372,7 @@ class Connector:
                     "includes": ["category", "category_list", "domain", "product_name", "url"],
                     "excludes": []},
                 "sort": [{"_doc": {"order": "asc"}}]}
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
             # just one
             if res["hits"]["hits"]:
                 return res["hits"]["hits"][0]["_source"]
@@ -392,7 +392,7 @@ class Connector:
                     "includes": ["name", "url_review", "domain", "url_shop", "info"],
                     "excludes": []},
                 "sort": [{"_doc": {"order": "asc"}}]}
-            res = self.es.search(index, body)
+            res = self.es.search(index=index, body=body)
             # just one
             if res["hits"]["hits"]:
                 return res["hits"]["hits"][0]["_source"]
@@ -409,7 +409,7 @@ class Connector:
             body = {"size": 1000,
                     "query": {"term": {"domain.keyword": {"value": category, "boost": 1.0}}},
                     "_source": {"includes": ["url"], "excludes": []}, "sort": [{"_doc": {"order": "asc"}}]}
-            res = self.es.search("product", body)
+            # res = self.es.search(index="product", body=body)
             # just one
             return self.__scroll("product", body)
 
@@ -432,7 +432,7 @@ class Connector:
     def delete_product_by_domain(self, domain):
         try:
             body = {"query": {"match": {"domain": domain}}}
-            res = self.es.delete_by_query("product", body)
+            res = self.es.delete_by_query(index="product", body=body)
             return res
 
         except Exception as e:

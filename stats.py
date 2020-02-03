@@ -460,7 +460,7 @@ def main():
         'am': 'Auto-moto',
         'dz': 'Detske zbozi',
         'om': 'Obleceni a moda',
-        'fkh': 'Filmy, knihy, hry',
+        'fkh': 'Filmy knihy hry',
         'kaz': 'Kosmetika a zdravi',
         'sp': 'Sport',
         'hob': 'Hobby',

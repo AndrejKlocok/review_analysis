@@ -19,7 +19,7 @@ class HeurekaCrawler:
             'Auto-moto',
             'Detske zbozi',
             'Obleceni a moda',
-            'Filmy, knihy, hry',
+            'Filmy knihy hry',
             'Kosmetika a zdravi',
             'Sport',
             'Hobby',
@@ -118,7 +118,7 @@ class HeurekaCrawler:
         # set summary
         if review_text.p:
             text = review_text.p.get_text()
-            if not self.bert_filter(text):
+            if not self.bert_filter.is_irrelevant(text):
                 review.set_summary(text)
 
         return review
@@ -562,7 +562,7 @@ class HeurekaCrawler:
             #'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
             #'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
             #'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
-            #'Filmy, knihy, hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
+            #'Filmy knihy hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
             #'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
             #'Sport': 'https://obchody.heureka.cz/sport/',
             #'Hobby': 'https://obchody.heureka.cz/hobby/',
@@ -668,6 +668,7 @@ def main():
     parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
     parser.add_argument("-path", "-path", help="Path to the dataset folder")
     parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
+    parser.add_argument("-filter", "-filter", help="Use model to filter irrelevant sentences", action="store_true")
 
     args = vars(parser.parse_args())
     # create tagger
@@ -677,8 +678,9 @@ def main():
     # Elastic
     con = Connector()
 
+    model_path = '../model/bert_irelevant' if args['filter'] else ''
     # Bert filter model
-    heureka_filter = HeurekaFilter('../model/bert_irelevant', '../irrelevant.tsv')
+    heureka_filter = HeurekaFilter(model_path, '../irrelevant.tsv')
 
     # Crawler
     crawler = HeurekaCrawler(con, tagger, heureka_filter)

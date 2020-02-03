@@ -155,7 +155,7 @@ def main():
         # 'Auto-moto',
         # 'Detske zbozi',
         # 'Obleceni a moda',
-        'Filmy, knihy, hry',
+        'Filmy knihy hry',
         # 'Kosmetika a zdravi',
         # 'Sport',
         # 'Hobby',

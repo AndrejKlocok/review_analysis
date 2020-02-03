@@ -1,5 +1,5 @@
 import torch
-from pytorch_transformers import BertTokenizer, BertModel, BertForMaskedLM
+from transformers import BertTokenizer, BertModel, BertForMaskedLM
 
 def main():
     # Load pre-trained model tokenizer (vocabulary)

@@ -93,7 +93,7 @@ class HeurekaIndex():
             ('Auto-moto', 'https://auto-moto.heureka.cz/'),
             ('Detske zbozi', 'https://detske-zbozi.heureka.cz/'),
             ('Obleceni a moda', 'https://moda.heureka.cz/')
-            ('Filmy, knihy, hry', 'https://filmy-hudba-knihy.heureka.cz/'),
+            ('Filmy knihy hry', 'https://filmy-hudba-knihy.heureka.cz/'),
             ('Kosmetika a zdravi', 'https://kosmetika-zdravi.heureka.cz/'),
             ('Sport', 'https://sport.heureka.cz/'),
             ('Hobby', 'https://hobby.heureka.cz/'),

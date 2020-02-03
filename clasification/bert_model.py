@@ -1,5 +1,5 @@
 from clasification.procesors_cls import InputExample, convert_to_features
-from pytorch_transformers import BertForSequenceClassification, BertTokenizer, BertConfig
+from transformers import BertForSequenceClassification, BertTokenizer, BertConfig
 import numpy as np
 import torch
 
