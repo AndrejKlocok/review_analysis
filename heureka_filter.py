@@ -34,7 +34,7 @@ class HeurekaFilter:
             # self.log_file.write(sentence + '\n')
             return True
         # too long review sentence is kind of valid
-        elif len(sentence.split()) > 15:
+        elif len(sentence.split()) > 10:
             return False
 
         # evaluate sentence with trained model, if we use one

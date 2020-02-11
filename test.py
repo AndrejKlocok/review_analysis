@@ -92,9 +92,10 @@ def test():
             file.write(str(i)+'\t'+'0'+'\ta\t\n')
 
 def main():
-    con = Connector()
-    statistics_sentences('dataset_negative.txt')
-    statistics_sentences('dataset_positive.txt')
+    from fse.models import SIF
+    #con = Connector()
+    #statistics_sentences('dataset_negative.txt')
+    #statistics_sentences('dataset_positive.txt')
     return
     #res = con.get_count('Bile zbozi', 'vysavace')
     # res = con.get_shop_by_name('test42')
