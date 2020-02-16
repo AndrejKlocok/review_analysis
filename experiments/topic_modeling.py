@@ -3,12 +3,13 @@ from functools import reduce
 from gensim import corpora, models
 from os import listdir
 from os.path import isfile, join
-from utils.morpho_tagger import MorphoTagger
 import pyLDAvis
 import pyLDAvis.gensim
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
+sys.path.append('../')
+from utils.morpho_tagger import MorphoTagger
 
 
 class LDA_model:
@@ -142,6 +143,7 @@ def main():
         description="LDA topic modeling")
     parser.add_argument('-dir', '--input_dir', help='Directory with documents')
     parser.add_argument('-in', '--input_file', help='File from which we generate topic modeling')
+    parser.add_argument('-tsv', '--tsv', help='Get topics from tsv', action='store_true')
     parser.add_argument('-t', '--topics', help='Count of topics', default=1)
     parser.add_argument('-test', '--test', help='Test model on sentences')
     parser.add_argument('-ngram', '--ngram', help='Ngrams', default=1)
@@ -150,8 +152,25 @@ def main():
     args = vars(parser.parse_args())
 
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
-    if args['input_file']:
+    tagger.load_tagger("../external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+
+    if args['tsv']:
+        model = LDA_model(args)
+        sentences = {}
+        for sentence in model.sentences:
+            s = sentence.split('\t')
+            if s[1] not in sentences:
+                sentences[s[1]] = []
+            sentences[s[1]].append(s[0])
+
+        for key in sorted(sentences.keys()):
+            value = sentences[key]
+            print('Cluster: {} '.format(key))
+            model.sentences = value
+            model.create_lda_model(tagger)
+
+        #model.sentences
+    elif args['input_file']:
         model = LDA_model(args)
         model.create_lda_model(tagger)
         if args['test']:

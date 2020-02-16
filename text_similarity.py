@@ -15,6 +15,9 @@ from collections import Counter
 from sklearn.decomposition import PCA
 from fse.models import Average, SIF
 from fse import IndexedList
+from sklearn.metrics import silhouette_score
+from gensim.models.fasttext import load_facebook_model
+
 
 class FastTextConfig:
     def __init__(self, embedding_size, window_size, min_word, down_sampling):
@@ -97,35 +100,53 @@ class FastTextSimilarityModel:
         plt.axis("off")
         wordcloud.to_file('./tmp/' + category + '-' + className + '.jpg')
 
+    def save(self):
+        from gensim.test.utils import get_tmpfile
+        pos_name = get_tmpfile("fasttext-pos.model")
+        neg_name = get_tmpfile("fasttext-neg.model")
 
-def main():
-    tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+        self.model_pos.save(pos_name)
+        if self.model_neg:
+            self.model_neg.save(neg_name)
 
-    conf = FastTextConfig(300, 10, 5, 1e-2)
 
-    fastTextModel = FastTextSimilarityModel("./", conf)
-    fastTextModel.set_pos(fastTextModel.preprocess(tagger, fastTextModel.sentences_pos))
-    # fastTextModel.set_neg(fastTextModel.preprocess(tagger, fastTextModel.sentences_neg))
+def kmeans(matrix, fastTextModel, num_clusters, do_write=True):
+    rng = random.Random(datetime.now())
+    kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=60,
+                                 avoid_empty_clusters=True, rng=rng)
 
-    fastTextModel.set_pos_model(fastTextModel.train_similarity(fastTextModel.sentences_pos_processed))
-    # fastTextModel.set_neg_model(fastTextModel.train_similarity(fastTextModel.sentences_neg_processed))
+    labels = kclusterer.cluster(matrix, assign_clusters=True)
+    cnt = Counter(labels)
 
-    # model = Average(fastTextModel.model_pos)
-    model = SIF(fastTextModel.model_pos)
-    model.train(IndexedList(fastTextModel.sentences_pos_processed))
+    print(silhouette_score(matrix, labels, metric='precomputed'))
 
-    sentences_vectors = []
-    i = 0
-    for vector in model.sv:
-        i += 1
-        sentences_vectors.append(vector)
-        if i == 500:
-            break
+    if do_write:
+        print(cnt)
+        with open('kmeans_cos' + str(num_clusters) + '.tsv', 'w') as file:
+            for j, sen in enumerate(fastTextModel.sentences_pos):
+                file.write(sen + '\t' + str(labels[j]) + '\n')
+    return labels
 
-    s = IndexedList(fastTextModel.sentences_pos_processed)
-    model.sv.most_similar(0, indexable=s.items)
 
+def check_kmeans(matrix, fastTextModel, kmax=18):
+    sil = []
+
+    for k in range(8, kmax + 1):
+        print('{} Iteration'.format(k))
+        labels = kmeans(matrix, fastTextModel, k, False)
+        sil.append(silhouette_score(matrix, labels, metric='precomputed'))
+
+    for val in sil:
+        print(val)
+
+
+def load_matrixes(path):
+    sim = np.load(path + 'sim_matrix.npy')
+    dist = np.load(path + 'dist_matrix.npy')
+    return sim, dist
+
+
+def create_sim_dist_matrix(fastTextModel, model):
     # sentence2vec similarities
     sim_matrix = []
     dist_matrix = []
@@ -146,23 +167,96 @@ def main():
 
     print(len(sim_matrix))
     print(len(dist_matrix))
-    print(len(sentences_vectors))
 
     dist_matrix = np.array(dist_matrix)
     sim_matrix = np.array(sim_matrix)
 
-    num_clusters = 15
-    rng = random.Random(datetime.now())
-    kclusterer = KMeansClusterer(num_clusters, distance=nltk.cluster.util.cosine_distance, repeats=60,
-                                 avoid_empty_clusters=True, rng=rng)
+    return sim_matrix, dist_matrix
 
-    labels = kclusterer.cluster(sim_matrix, assign_clusters=True)
-    cnt = Counter(labels)
-    print(cnt)
 
-    with open('kmeans_wmd_similarity_cos' + str(num_clusters) + '.tsv', 'w') as file:
+def db_scan(matrix, fastTextModel):
+    from sklearn.cluster import DBSCAN
+
+    clustering = DBSCAN(eps=0.3, metric='precomputed', min_samples=10, algorithm='brute').fit(matrix)
+
+    labels = clustering.labels_
+    no_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    print(no_clusters)
+
+    with open('DBSCAN_wmd_sim.tsv', 'w') as file:
         for j, sen in enumerate(fastTextModel.sentences_pos):
             file.write(sen + '\t' + str(labels[j]) + '\n')
+
+
+def algomerative(dist_matrix, fastTextModel):
+    from sklearn.cluster import AgglomerativeClustering
+
+    clustering = AgglomerativeClustering(affinity='precomputed', linkage='ward', n_clusters=5)
+
+    labels = clustering.fit_predict(dist_matrix)
+
+    no_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    print(no_clusters)
+
+    with open('AgglomerativeClustering_wmd.tsv', 'w') as file:
+        for j, sen in enumerate(fastTextModel.sentences_pos):
+            file.write(sen + '\t' + str(labels[j]) + '\n')
+
+
+def affinity(dist_matrix, fastTextModel):
+    from sklearn.cluster import AffinityPropagation
+
+    clustering = AffinityPropagation(damping=0.7, affinity='precomputed', convergence_iter=20).fit(dist_matrix)
+
+    labels = clustering.labels_
+
+    no_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    print(no_clusters)
+
+    with open('AffinityPropagation_wmd_sim.tsv', 'w') as file:
+        for j, sen in enumerate(fastTextModel.sentences_pos):
+            file.write(sen + '\t' + str(labels[j]) + '\n')
+
+def main():
+    tagger = MorphoTagger()
+    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+
+    conf = FastTextConfig(300, 10, 5, 1e-2)
+
+    fastTextModel = FastTextSimilarityModel("./", conf)
+    fastTextModel.set_pos(fastTextModel.preprocess(tagger, fastTextModel.sentences_pos))
+    # fastTextModel.set_neg(fastTextModel.preprocess(tagger, fastTextModel.sentences_neg))
+
+    # fastTextModel.set_pos_model(fastTextModel.train_similarity(fastTextModel.sentences_pos_processed))
+    # fastTextModel.set_neg_model(fastTextModel.train_similarity(fastTextModel.sentences_neg_processed))
+    # ft = load_facebook_model('../model/fasttext/cc.cs.300.bin')
+    # model = Average(fastTextModel.model_pos)
+    # model = SIF(ft, workers=10)
+    # model.train(IndexedList(fastTextModel.sentences_pos_processed))
+
+    # sentences_vectors = []
+    # i = 0
+    # for vector in model.sv:
+    #    i += 1
+    #    sentences_vectors.append(vector)
+    #    if i == fastTextModel.sentences_pos_len:
+    #        break
+
+    # s = IndexedList(fastTextModel.sentences_pos_processed)
+    # model.sv.most_similar(0, indexable=s.items)
+
+    sim_matrix, dist_matrix = load_matrixes('tmp/kmeans_300d_cz_cc_500s/')
+    # sim_matrix, dist_matrix = create_sim_dist_matrix(fastTextModel, model)
+
+    # fastTextModel.save()
+    # model.save('fse.model')
+    np.fill_diagonal(sim_matrix, 0)
+    np.fill_diagonal(dist_matrix, 0)
+    # np.save('dist_matrix.npy', dist_matrix)
+    # np.save('sim_matrix.npy', sim_matrix)
+
+    # kmeans(dist_matrix, fastTextModel, 22, do_write=True)
+    # check_kmeans(dist_matrix, fastTextModel, 30)
 
 
 if __name__ == '__main__':

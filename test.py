@@ -91,12 +91,64 @@ def test():
         for i in range(499, 2000):
             file.write(str(i)+'\t'+'0'+'\ta\t\n')
 
+def validate_clusters(file1, file2):
+    def _load_tsv(f):
+        d = {}
+        with open(f, 'r') as file:
+            for line in file:
+                s = line[:-1].split('\t')
+                if s[1] not in d:
+                    d[s[1]] = []
+                d[s[1]].append(s[0])
+        return d
+
+    f_1 = _load_tsv(file1)
+    f_2 = _load_tsv(file2)
+    f_1_reversed = {}
+    f_same = {}
+    for key, value in f_1.items():
+        for val in value:
+            f_1_reversed[val]=key
+
+    for key in f_2.keys():
+        f_same[key]=[]
+
+    for key_main, value in f_2.items():
+        i = 0
+        for key in f_2.keys():
+            f_same[key] = 0
+
+        for sentence in value:
+            f_same[f_1_reversed[sentence]] += 1
+
+        freq_sort = [(k, f_same[k]) for k in sorted(f_same, key=f_same.get, reverse=True)]
+        print('Cluster {} is'.format(str(key_main)))
+        print(freq_sort)
+
+
 def main():
-    from fse.models import SIF
+    #validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
+    #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
+    import string
+    file_read = open('../experiments/irrelevant/irrelevant.tsv', "r")
+    with open('../experiments/irrelevant/irrelevant_w.tsv', "w") as file:
+        for line in file_read:
+            line = line[:-1]
+            line = line.split('\t')
+
+            line[3] = line[3].lower().capitalize()
+            if line[3][-1] not in string.punctuation:
+                line[3] += '.'
+
+            file.write('\t'.join(line)+'\n')
+
+
+
+    import numpy as np
     #con = Connector()
     #statistics_sentences('dataset_negative.txt')
     #statistics_sentences('dataset_positive.txt')
-    return
+    #return
     #res = con.get_count('Bile zbozi', 'vysavace')
     # res = con.get_shop_by_name('test42')
     # print(res)
@@ -135,7 +187,7 @@ def main():
     # res = con.match_all('shop_review')
     # res = con.get_shop_by_name(shop_d['name'])
     # res = con.get_subcategories_count("Bile zbozi")
-    print(res)
+    # print(res)
 
 
 
