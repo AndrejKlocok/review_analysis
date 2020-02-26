@@ -3,6 +3,9 @@ from elasticsearch.helpers import bulk
 from elasticsearch.exceptions import NotFoundError
 
 import json, sys
+from anytree import Node
+from anytree.exporter import JsonExporter, DictExporter
+from operator import itemgetter
 
 
 class Connector:
@@ -17,7 +20,11 @@ class Connector:
             pass
 
         self.domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
+        self.indexes = dict((v, k) for k, v in self.domain.items())
         self.max = 10000
+        self.jsonExporter = JsonExporter(indent=2, sort_keys=True, ensure_ascii=False)
+        self.dictExporter = DictExporter()
+        self.category_to_domain = self.get_index_breadcrums(breadcrumbs=False)
 
     def init_domains(self):
         """
@@ -69,7 +76,7 @@ class Connector:
             if not subcategory:
                 res = self.es.count(index=index)['count']
             else:
-                #subcategory_domain = self.get_domain(subcategory)
+                # subcategory_domain = self.get_domain(subcategory)
                 body = {
                     "query": {
                         "term": {
@@ -138,6 +145,22 @@ class Connector:
         finally:
             return out
 
+    def _list_to_tree(self, values):
+        tree_dic = {}
+        root = Node('Heureka.cz')
+        tree_dic['Heureka.cz'] = root
+
+        for val in values:
+            parent = root
+            for cat in val.split('|')[1:]:
+                s = cat.strip()
+                if s not in tree_dic:
+                    tree_dic[s] = Node(s, parent=parent)
+                    # tree_dic[s].parent = parent
+                parent = tree_dic[s]
+
+        return self.dictExporter.export(root)
+
     def match_all(self, category):
         try:
             body = {"query": {"match_all": {}}}
@@ -147,6 +170,152 @@ class Connector:
             print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
             return None
         pass
+
+    def get_product_breadcrums(self):
+        try:
+            body = {
+                "size": 1000,
+                "_source": {
+                    "includes": [
+                        "category_list"
+                    ],
+                    "excludes": []
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+
+            data = self._get_data('product', None, body)
+
+            values = [val['category_list'] for val in data]
+            values = list(set(values))
+            values.sort()
+
+            return self._list_to_tree(values), 200
+
+        except Exception as e:
+            print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
+            return None, 500
+        pass
+
+    def get_index_breadcrums(self, breadcrumbs=True):
+        try:
+            body = {
+                "size": 0,
+                "_source": False,
+                "stored_fields": "_none_",
+                "aggregations": {
+                    "groupby": {
+                        "composite": {
+                            "size": 10000,
+                            "sources": [
+                                {
+                                    "505": {
+                                        "terms": {
+                                            "field": "domain.keyword",
+                                            "missing_bucket": True,
+                                            "order": "asc"
+                                        }
+                                    }
+                                },
+                                {
+                                    "501": {
+                                        "terms": {
+                                            "field": "category.keyword",
+                                            "missing_bucket": True,
+                                            "order": "asc"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+
+            try:
+                res = self.es.search(index='product', body=body)
+            except Exception as e:
+                print("[Connector-get_index_breadcrums] Error: " + str(e), file=sys.stderr)
+                return None, 404
+            if breadcrumbs:
+                values = [' | '.join(['Heureka.cz', val['key']['505'],
+                                      val['key']['501']])  # + ' ' + str(val['doc_count'])
+                          for val in res["aggregations"]["groupby"]["buckets"]]
+
+                return self._list_to_tree(values), 200
+            else:
+                category_to_domain = {}
+                for val in res["aggregations"]["groupby"]["buckets"]:
+                    if val['key']['501'] not in category_to_domain:
+                        category_to_domain[val['key']['501']] = val['key']['505']
+                return category_to_domain
+
+        except Exception as e:
+            print("[Connector-get_index_breadcrums] Error: " + str(e), file=sys.stderr)
+            return None, 500
+        pass
+
+    def get_category_products(self, category):
+        try:
+            body = {
+                "size": 1000,
+                "query": {
+                    "term": {
+                        "category.keyword": {
+                            "value": category,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "category",
+                        "category_list",
+                        "domain",
+                        "product_name",
+                        "url"
+                    ],
+                    "excludes": []
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+
+            res = self._get_data('product', category, body)
+            # category not found
+            if not res:
+                return None, 404
+            all_revs = 0
+            all_prod = 0
+
+            for product in res:
+                reviews, _ = self.get_reviews_from_product(product['product_name'])
+                product['reviews_len'] = len(reviews)
+                all_revs += len(reviews)
+                all_prod += 1
+
+            out = sorted(res, key=itemgetter('reviews_len'), reverse=True)
+            d = {
+                'products': out,
+                'total_products': all_prod,
+                'total_reviews': all_revs
+            }
+            return d, 200
+
+        except Exception as e:
+            print("[Connector-get_category_products] Error: " + str(e), file=sys.stderr)
+            return None, 500
 
     def get_subcategories_count(self, category):
         """
@@ -200,7 +369,6 @@ class Connector:
         except Exception as e:
             print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
             return None
-        pass
 
     def get_reviews_from_subcategory(self, category, subcategory):
         try:
@@ -243,8 +411,158 @@ class Connector:
             return self._get_data(category, subcategory, body)
 
         except Exception as e:
-            print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
+            print("[get_reviews_from_subcategory] Error: " + str(e), file=sys.stderr)
             return None
+        pass
+
+    def get_reviews_from_product(self, product):
+        try:
+            body = {
+                "size": 1,
+                "query": {
+                    "term": {
+                        "product_name.keyword": {
+                            "value": product,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "category", "domain"
+                    ]
+                }
+            }
+            # get product category and domain from es
+            res = self.es.search(index='product', body=body)
+            try:
+                product_category = res["hits"]["hits"][0]["_source"]['category']
+                product_domain = res["hits"]["hits"][0]["_source"]['domain']
+                product_domain = self.indexes[product_domain]
+            except Exception as e:
+                print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+                return None, 404
+            body = {
+                "size": 1000,
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {
+                                    "product_name.keyword": {
+                                        "value": product,
+                                        "boost": 1.0
+                                    }
+                                }
+                            },
+                            {
+                                "term": {
+                                    "category.keyword": {
+                                        "value": product_category,
+                                        "boost": 1.0
+                                    }
+                                }
+                            }
+                        ],
+                        "adjust_pure_negative": True,
+                        "boost": 1.0
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "author",
+                        "category",
+                        "cons",
+                        "cons_POS",
+                        "date_str",
+                        "date",
+                        "domain",
+                        "pro_POS",
+                        "product_name",
+                        "pros",
+                        "rating",
+                        "recommends",
+                        "summary",
+                        "summary_POS"
+                    ],
+                    "excludes": []
+                },
+                "docvalue_fields": [
+                    {
+                        "field": "date",
+                        "format": "epoch_millis"
+                    }
+                ],
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            # get product category and domain from es, not more than 10k?
+            res = self._get_data(product_domain, product_category, body)
+            if res:
+                return res, 200
+            else:
+                return res, 404
+
+        except Exception as e:
+            print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+            return None, 500
+        pass
+
+    def get_reviews_from_category(self, category):
+        try:
+            domain = self.indexes[self.category_to_domain[category]]
+
+            body = {
+                "size": 10000,
+                "query": {
+                    "term": {
+                        "category.keyword": {
+                            "value": category,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "author",
+                        "category",
+                        "cons",
+                        "cons_POS",
+                        "date",
+                        "domain",
+                        "pro_POS",
+                        "product_name",
+                        "pros",
+                        "rating",
+                        "recommends",
+                        "summary",
+                        "summary_POS"
+                    ],
+                    "excludes": []
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            # get reviews
+            res = self._get_data(domain, category, body)
+            if res:
+                return res, 200
+            else:
+                return res, 404
+
+        except Exception as e:
+            print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+            return None, 500
         pass
 
     def get_newest_review(self, category, product_name):
@@ -342,11 +660,12 @@ class Connector:
                 },
                 "_source": {
                     "includes": [
-                        "author","pros", "pros_pos", "cons", "cons_pos", "summary_pos", "date",
-                        "date_str","delivery_time","domain","rating","recommends","shop_name","summary", "aspect"],
+                        "author", "pros", "pros_pos", "cons", "cons_pos", "summary_pos", "date",
+                        "date_str", "delivery_time", "domain", "rating", "recommends", "shop_name", "summary",
+                        "aspect"],
                     "excludes": []
                 },
-                "docvalue_fields": [{"field": "date","format": "epoch_millis"}],
+                "docvalue_fields": [{"field": "date", "format": "epoch_millis"}],
                 "sort": [{"_doc": {"order": "asc"}}]
             }
             res = self.es.search(index=index, body=body)
@@ -440,13 +759,16 @@ class Connector:
             return None
         pass
 
-    def update(self):
+    def update(self, domain):
         pass
 
+    def get_indexes_health(self):
+        try:
 
-def main():
-    con = Connector()
+            res = self.es.cat.indices(params={'format': 'JSON'})
+            return res, 200
 
-
-if __name__ == '__main__':
-    main()
+        except Exception as e:
+            print("[get_indexes_health] Error: " + str(e), file=sys.stderr)
+            return None, 500
+        pass

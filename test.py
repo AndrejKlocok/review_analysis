@@ -3,6 +3,7 @@ import json
 from utils.discussion import Files
 from utils.morpho_tagger import MorphoTagger
 from utils.elastic_connector import Connector
+from utils.generate_dataset import GeneratorController
 
 month_mapper = {
     "ledna": "January",
@@ -129,32 +130,37 @@ def validate_clusters(file1, file2):
 def main():
     #validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
-    import string
-    file_read = open('../experiments/irrelevant/irrelevant.tsv', "r")
-    with open('../experiments/irrelevant/irrelevant_w.tsv', "w") as file:
-        for line in file_read:
-            line = line[:-1]
-            line = line.split('\t')
-
-            line[3] = line[3].lower().capitalize()
-            if line[3][-1] not in string.punctuation:
-                line[3] += '.'
-
-            file.write('\t'.join(line)+'\n')
-
-
 
     import numpy as np
-    #con = Connector()
+    con = Connector()
+    cntr = GeneratorController(con)
+    o = {
+	"task_type": "regression on rating",
+	"model_type": "general",
+	"sentence_type": "sentence = row",
+	"equal": True,
+	"sentence_min_len": 3,
+	"sentence_max_len": 24,
+	"categories": []
+}
+    cntr.generate(o)
     #statistics_sentences('dataset_negative.txt')
     #statistics_sentences('dataset_positive.txt')
     #return
     #res = con.get_count('Bile zbozi', 'vysavace')
     # res = con.get_shop_by_name('test42')
-    # print(res)
+    #print(res)
     # print('\n\n')
-    #res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
-    #res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    # res = con.get_product_by_name('Rowenta Silence Force Extreme AAAA Turbo Animal Care RO6477EA')
+    #print(res)
+    #res = con.es.search(index='domain', size=20)["hits"]
+    #domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
+    #print(domain)
+    # res = con.get_newest_review('Bile zbozi', 'Gillette Mach3 12 ks')
+    #res = con.get_reviews_from_product('Gillette Mach3 12 ks')
+    #res = con.get_indexes_health()
+    #res = con.get_index_breadcrums()
+    #res = con.get_category_products('aditiva')
     shop_d = {
         'name': 'shop_name',
         'url_review': 'shop_url',
@@ -186,8 +192,9 @@ def main():
     # print(res)
     # res = con.match_all('shop_review')
     # res = con.get_shop_by_name(shop_d['name'])
-    # res = con.get_subcategories_count("Bile zbozi")
-    # print(res)
+    #res = con.get_subcategories_count("Bile zbozi")
+    #res = con.get_product_breadcrums()
+    #print(res)
 
 
 

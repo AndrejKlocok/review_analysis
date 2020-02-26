@@ -1,7 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import matthews_corrcoef, f1_score, confusion_matrix, mean_squared_error
-from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import mean_squared_error
 import random
 import argparse
 from generate_dataset import statistics, Generator

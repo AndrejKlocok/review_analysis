@@ -6,31 +6,39 @@ import pandas as pd
 import sys
 from sklearn.model_selection import train_test_split
 
-from utils.elastic_connector import Connector
+from .elastic_connector import Connector
+
+sentence_type_mapper = {
+    'sentence = row': 0,
+    'section of +/- = row': 1,
+    'whole section of +/- = row': 2,
+    'whole review = row': 3
+}
 
 
 class Generator:
-    def __init__(self, category: str, connector: Connector, args: argparse, is_pro: bool = True,
+    def __init__(self, domain: str, connector: Connector, args, is_pro: bool = True,
                  is_con: bool = True, is_summary: bool = True):
-        self.__category = category
+        self.__domain = domain
         self.__con = connector
         self.is_pro = is_pro
         self.is_con = is_con
         self.is_summary = is_summary
         self.is_bert = args['bert']
-        self.is_one_neuron = args['neuron']
-        # TODO enum not int
-        self.is_just_sentence = args['sentences']
-        self.is_equal = args['equal_dataset']
-        self.n_categories = args['num_category']
+
+        self.is_just_sentence = args['sentence_type']
+        self.is_equal = args['equal']
+        self.n_categories = args['num_category'] if 'num_category' in args else -1
         self.rating = False
         self.idx = 0
-        self.category = args['category']
-        self.len_min = args['min']
-        self.len_max = args['max']
+        self.category = args['category'] if 'category' in args else None
+        self.categories = args['categories']
+        self.len_min = args['sentence_min_len']
+        self.len_max = args['sentence_max_len']
 
     def parse_reviews(self, cat_name, sentences):
-        review_list = self.__con.get_reviews_from_subcategory(self.__category, cat_name)
+        review_list, _ = self.__con.get_reviews_from_category(cat_name)
+
         for review in review_list:
             review_sentences = []
             rating = round((int(review['rating'][:-1])) / 100, 3)
@@ -75,7 +83,7 @@ class Generator:
             sentences += review_sentences
 
     def get_sentences(self, shuffle=False):
-        data = self.__con.get_subcategories_count(self.__category)
+        data = self.__con.get_subcategories_count(self.__domain)
         sentences = []
         # desired subcategory is selected
         if self.category:
@@ -91,6 +99,18 @@ class Generator:
             for name, count in data[:self.n_categories]:
                 print("Dataset of " + name + " with " + str(count) + " reviews")
                 self.parse_reviews(name, sentences)
+
+        if shuffle:
+            random.shuffle(sentences)
+
+        return sentences
+
+    def get_data_api_call(self, shuffle=False):
+        sentences = []
+        for category in self.categories:
+            sentences_cat = []
+            self.parse_reviews(category, sentences_cat)
+            sentences += sentences_cat
 
         if shuffle:
             random.shuffle(sentences)
@@ -118,7 +138,7 @@ class Generator:
         count = int(n * ratio)
         return sentences[:count], sentences[count:]
 
-    def bert(self, s_list, regression=False):
+    def bert(self, s_list, regression=False, csv=True):
         try:
             all_sentences = []
             dev_size = 0.2
@@ -140,57 +160,176 @@ class Generator:
                 s_sentences_train += strain
                 s_sentences_test += stest
 
-            dataset = []
             dataset_train = []
+            dataset_dev = []
 
-            if self.is_one_neuron:
-                for s, label in s_sentences_test:
-                    dataset.append([label, s])
-
-                for s, label in s_sentences_train:
-                    dataset_train.append([label, s])
-
-                random.shuffle(dataset)
-                random.shuffle(dataset_train)
-
-                neuron_data_frame = pd.DataFrame(dataset, columns=['label', 'sentence'])
-                df_neuron_train, df_neuron_dev = train_test_split(neuron_data_frame, test_size=dev_size)
-
-                # Creating test dataframe
-                df_neuron_test = pd.DataFrame(dataset_train, columns=['label', 'sentence'])
-                # Saving dataframes to .csv format
-                df_neuron_train.to_csv('train_binary_sent.csv', sep=',', index=False, header=True)
-                df_neuron_dev.to_csv('dev_binary_sent.csv', sep=',', index=False, header=True)
-                df_neuron_test.to_csv('test_binary_sent.csv', sep=',', index=False, header=True)
-
-            elif self.is_bert:
+            if self.is_bert:
                 i = 0
                 for s, label in s_sentences_test:
-                    dataset.append([i, label, 'a', s])
+                    dataset_train.append([str(i), str(label), 'a', s])
                     i += 1
 
                 for s, label in s_sentences_train:
-                    dataset_train.append([i, label, 'a', s])
+                    dataset_dev.append([str(i), str(label), 'a', s])
                     i += 1
 
-                random.shuffle(dataset)
                 random.shuffle(dataset_train)
+                random.shuffle(dataset_dev)
+                if csv:
+                    df_bert_train = pd.DataFrame(dataset_train, columns=['id', 'label', 'alpha', 'text'])
+                    # Creating test dataframe according to BERT
+                    df_bert_dev = pd.DataFrame(dataset_dev, columns=['id', 'label', 'alpha', 'text'])
+                    # Saving dataframes to .tsv format as required by BERT
+                    df_bert_train.to_csv('train.tsv', sep='\t', index=False, header=False)
+                    df_bert_dev.to_csv('dev.tsv', sep='\t', index=False, header=False)
+                else:
+                    train = ['\t'.join(row)+'\n' for row in dataset_train]
+                    dev = ['\t'.join(row)+'\n' for row in dataset_dev]
+                    return train, dev
 
-                df_bert_train = pd.DataFrame(dataset, columns=['id', 'label', 'alpha', 'text'])
-
-                # Creating test dataframe according to BERT
-                df_bert_dev = pd.DataFrame(dataset_train, columns=['id', 'label', 'alpha', 'text'])
-                # Saving dataframes to .tsv format as required by BERT
-                df_bert_train.to_csv('train.tsv', sep='\t', index=False, header=False)
-                df_bert_dev.to_csv('dev.tsv', sep='\t', index=False, header=False)
         except Exception as e:
             print("[bert] Exception: " + str(e), file=sys.stderr)
+
+
+class GeneratorController:
+    def __init__(self, connector: Connector):
+        # Elastic
+        self.con = connector
+
+    def generate(self, args):
+        data = {
+            'error': None
+        }
+        args['bert'] = False
+        if args['model_type'] == 'bert':
+            args['bert'] = True
+
+        try:
+            t = sentence_type_mapper[args['sentence_type']]
+            args['sentence_type'] = t
+        except KeyError as e:
+            data['error'] = str(e)
+            return data
+
+        # at least one category
+        if len(args['categories']) == 0:
+            data['error'] = 'Empty categories field'
+            return data
+
+        generator = Generator(domain='', connector=self.con, args=args)
+
+        if args['task_type'] == 'embeddings':
+            data = self.__embeddings_task(generator)
+
+        elif args['task_type'] == 'bipolar classification':
+            data = self.__cls_task(generator)
+
+        elif args['task_type'] == 'regression on rating':
+            data = self.__regression_task(generator)
+
+        else:
+            data['error'] = 'KeyError: Unknown task type'
+
+        return data
+
+    def __embeddings_task(self, generator: Generator):
+        d = {}
+        sentences = []
+        try:
+            sentences = generator.get_data_api_call(True)
+            d['embbedings.txt'] = sentences
+        except Exception as e:
+            print("[__embeddings_task] Exception: " + str(e), file=sys.stderr)
+            d['error'] = str(e)
+        finally:
+            return d
+
+    def __cls_task(self, generator: Generator):
+        d = {}
+        try:
+            generator.is_summary = False
+            generator.is_con = False
+            sentences_pro = generator.get_data_api_call(True)
+            generator.is_con = True
+            generator.is_pro = False
+            sentences_con = generator.get_data_api_call(True)
+
+            if generator.is_equal:
+                l_pro = len(sentences_pro)
+                l_con = len(sentences_con)
+                if l_pro > l_con:
+                    sentences_pro = sentences_pro[:l_con]
+                elif l_pro < l_con:
+                    sentences_con = sentences_pro[:l_pro]
+
+
+            if generator.is_bert:
+                train, dev = generator.bert([sentences_pro, sentences_con], csv=False)
+                d['train.tsv'] = train
+                d['dev.tsv'] = dev
+            else:
+                d['dataset_positive.txt'] = sentences_pro
+                d['dataset_negative.txt'] = sentences_con
+
+        except Exception as e:
+            print("[__cls_task] Exception: " + str(e), file=sys.stderr)
+            d['error'] = str(e)
+        finally:
+            return d
+
+    def __regression_task(self, generator: Generator):
+        data = {}
+        try:
+            d = {}
+            generator.rating = True
+            # regression task, need to sort sentences according to rating from 0 to 100
+            # sentences = sorted(sentences, key=lambda x:x[1], reverse=False)
+            sentences = generator.get_data_api_call(True)
+            regression = True
+            for s, rating in sentences:
+                if rating not in d:
+                    d[rating] = []
+
+                d[rating].append((s, rating))
+            d.pop(0.0, None)
+            if generator.is_equal:
+                d_eq = {}
+                min = len(d[1.0])
+                for key, value in d.items():
+                    if min > len(value):
+                        min = len(value)
+                for key, value in d.items():
+                    d_eq[key] = d[key][:min]
+                d = d_eq
+
+            if generator.is_bert:
+                l = [val for _, val in d.items()]
+                train, dev = generator.bert(l, regression, csv=False)
+                data['train.tsv'] = train
+                data['dev.tsv'] = dev
+            else:
+                for key, value in d.items():
+                    name = 'dataset'+ '_' + str(key)+'.txt'
+                    data[name] = [val for val, _ in value]
+
+            # regression dataset statistics
+            l = []
+            l_tmp = sorted(d)
+            for val in l_tmp:
+                l.append([s for s, rating in d[val]])
+            data['statistics.txt'] = statistics(l)
+
+        except Exception as e:
+            print("[__regression_task] Exception: " + str(e), file=sys.stderr)
+            data['error'] = str(e)
+        finally:
+            return data
 
 
 def task_emb(generator: Generator):
     try:
         with open("dataset_emb.txt", "w") as file:
-            sentences = generator.get_sentences(generator.n_categories)
+            sentences = generator.get_sentences(True)
             c = int(len(sentences) * 0.2)
             i = 0
             f_train = open("dataset_emb_test.txt", "w")
@@ -208,9 +347,10 @@ def task_emb(generator: Generator):
 
 def statistics(dataset):
     i = 0
+    stats = []
     regex = r'[.]'
     for category_dataset in dataset:
-        print("For category: " + str(i) + "there is: " + str(len(category_dataset)) + " lines")
+        stats.append("For category: " + str(i) + "there is: " + str(len(category_dataset)) + " lines\n")
         sentences_per_line = 0
         tokens_per_line = 0
 
@@ -224,10 +364,10 @@ def statistics(dataset):
                     sentences_per_line += 1
             tokens_per_line += tokens
 
-        print("\t\t sentences per line " + str((sentences_per_line / len(category_dataset))))
-        print("\t\t tokens per line " + str((tokens_per_line / len(category_dataset))))
+        stats.append("\t\t sentences per line " + str((sentences_per_line / len(category_dataset)))+'\n')
+        stats.append("\t\t tokens per line " + str((tokens_per_line / len(category_dataset)))+'\n')
         i += 1
-
+    return stats
 
 def task_cls(generator: Generator):
     try:
@@ -364,17 +504,17 @@ def main():
     parser.add_argument('-neur', '--neuron',
                         help='Generate dataset for one-neuron model (train.csv, test.csv, dev.csv)',
                         action='store_true')
-    parser.add_argument('-s', '--sentences', help="Sentences in dataset \n"
-                                                  + "0 -> one sentence one row\n"
-                                                  + "1 -> one \"section\" of pro/con review one row\n"
-                                                  + "2 -> whole section pro/con as one row\n"
-                                                  + "3 -> whole review one row", type=int,
+    parser.add_argument('-s', '--sentence_type', help="Sentences in dataset \n"
+                                                      + "0 -> one sentence one row\n"
+                                                      + "1 -> one \"section\" of pro/con review one row\n"
+                                                      + "2 -> whole section pro/con as one row\n"
+                                                      + "3 -> whole review one row", type=int,
                         default=0)
     parser.add_argument('-n', '--num_category', help='Number of categories from bert', type=int, default=-1)
-    parser.add_argument('-e', '--equal_dataset', help='Generate pos/neg equal size', action='store_true')
+    parser.add_argument('-e', '--equal', help='Generate pos/neg equal size', action='store_true')
     parser.add_argument('-c', '--category', help='Concrete category', type=str, default='')
-    parser.add_argument('-max', '--max', help='Maximum length of words', type=int, default=20)
-    parser.add_argument('-min', '--min', help='Minimum length of words', type=int, default=3)
+    parser.add_argument('-max', '--sentence_max_len', help='Maximum length of words', type=int, default=20)
+    parser.add_argument('-min', '--sentence_min_len', help='Minimum length of words', type=int, default=3)
 
     args = vars(parser.parse_args())
     if args['domain'] not in domain:
