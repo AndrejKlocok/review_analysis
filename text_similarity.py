@@ -229,10 +229,10 @@ def main():
 
     # fastTextModel.set_pos_model(fastTextModel.train_similarity(fastTextModel.sentences_pos_processed))
     # fastTextModel.set_neg_model(fastTextModel.train_similarity(fastTextModel.sentences_neg_processed))
-    # ft = load_facebook_model('../model/fasttext/cc.cs.300.bin')
-    # model = Average(fastTextModel.model_pos)
-    # model = SIF(ft, workers=10)
-    # model.train(IndexedList(fastTextModel.sentences_pos_processed))
+    #ft = load_facebook_model('../model/fasttext/cc.cs.300.bin')
+    model = Average(fastTextModel.model_pos)
+    model = SIF(ft, workers=10)
+    model.train(IndexedList(fastTextModel.sentences_pos_processed))
 
     # sentences_vectors = []
     # i = 0
@@ -246,7 +246,7 @@ def main():
     # model.sv.most_similar(0, indexable=s.items)
 
     sim_matrix, dist_matrix = load_matrixes('tmp/kmeans_300d_cz_cc_500s/')
-    # sim_matrix, dist_matrix = create_sim_dist_matrix(fastTextModel, model)
+    sim_matrix, dist_matrix = create_sim_dist_matrix(fastTextModel, model)
 
     # fastTextModel.save()
     # model.save('fse.model')

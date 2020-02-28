@@ -79,7 +79,10 @@ class MorphoTagger:
         self.pos_wp = WordPos("pozitivn", "AA")
         self.neg_wp = WordPos("negativn", "AA")
 
-    def load_tagger(self, path):
+    def load_tagger(self, path=None):
+        if not path:
+            path ="/home/andrej/Documents/school/Diplomka/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
+
         self.tagger = Tagger.load(path)
         if self.tagger is None:
             raise Exception("[morpho_tagger] Wrong path in tagger")
@@ -187,13 +190,13 @@ def main():
         description="Script morpho tagger")
     # parser.add_argument('-file', '--file', help='Aspect file', required=True)
     # parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
-    parser.add_argument('-w', '--words', help='Key words')
-    args = vars(parser.parse_args())
+    #parser.add_argument('-w', '--words', help='Key words')
+    #args = vars(parser.parse_args())
 
     # file = open(args["file"], "a")
 
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger()
 
     # aspect = {"name":args["name"], "lemma_list":[]}
     # s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")

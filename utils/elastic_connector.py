@@ -24,7 +24,7 @@ class Connector:
         self.max = 10000
         self.jsonExporter = JsonExporter(indent=2, sort_keys=True, ensure_ascii=False)
         self.dictExporter = DictExporter()
-        self.category_to_domain = self.get_index_breadcrums(breadcrumbs=False)
+        self.category_to_domain = self.get_product_breadcrums(breadcrumbs=False)
 
     def init_domains(self):
         """
@@ -108,7 +108,12 @@ class Connector:
             return self.__scroll(index, body)
         else:
             res = self.es.search(index=index, body=body)
-            return [d["_source"] for d in res["hits"]["hits"]]
+            l = []
+            for d in res["hits"]["hits"]:
+                source = d["_source"]
+                source["_id"] = d["_id"]
+                l.append(source)
+            return l
 
     def __scroll(self, index, query):
         """
@@ -132,7 +137,12 @@ class Connector:
             scroll_size = len(data['hits']['hits'])
 
             while scroll_size > 0:
-                out += [d["_source"] for d in data["hits"]["hits"]]
+                l = []
+                for d in data["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+                    l.append(source)
+                out += l
                 data = self.es.scroll(scroll_id=sid, scroll='10s')
                 # Update the scroll ID
                 sid = data['_scroll_id']
@@ -171,7 +181,7 @@ class Connector:
             return None
         pass
 
-    def get_product_breadcrums(self):
+    def get_data_breadcrumbs(self):
         try:
             body = {
                 "size": 1000,
@@ -203,7 +213,7 @@ class Connector:
             return None, 500
         pass
 
-    def get_index_breadcrums(self, breadcrumbs=True):
+    def get_product_breadcrums(self, breadcrumbs=True):
         try:
             body = {
                 "size": 0,
