@@ -4,13 +4,9 @@ from re import finditer
 import json
 from enum import Enum
 from unidecode import unidecode
-import sys
 from ufal.morphodita import Tagger, Forms, TaggedLemmas, TokenRanges
 from stop_words import get_stop_words
-
-import sys
-sys.path.append("..")
-from external.czech_stemmer import cz_stem
+from .czech_stemmer import cz_stem
 
 
 class Preprocess:
@@ -81,7 +77,7 @@ class MorphoTagger:
 
     def load_tagger(self, path=None):
         if not path:
-            path ="/home/andrej/Documents/school/Diplomka/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
+            path = "/home/andrej/Documents/school/Diplomka/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
 
         self.tagger = Tagger.load(path)
         if self.tagger is None:
@@ -190,8 +186,8 @@ def main():
         description="Script morpho tagger")
     # parser.add_argument('-file', '--file', help='Aspect file', required=True)
     # parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
-    #parser.add_argument('-w', '--words', help='Key words')
-    #args = vars(parser.parse_args())
+    # parser.add_argument('-w', '--words', help='Key words')
+    # args = vars(parser.parse_args())
 
     # file = open(args["file"], "a")
 

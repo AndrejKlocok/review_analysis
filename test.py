@@ -134,7 +134,7 @@ def main():
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
 
     config = {
-        "topics_per_cluster": 5,
+        "topics_per_cluster": 3,
         "download_data": False,
         "clusters_count": 7,
         "cluster_method": "kmeans",

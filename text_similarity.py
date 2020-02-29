@@ -221,7 +221,7 @@ def main():
     tagger = MorphoTagger()
     tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
-    conf = FastTextConfig(300, 10, 5, 1e-2)
+    conf = FastTextConfig(100, 10, 5, 1e-2)
 
     fastTextModel = FastTextSimilarityModel("./", conf)
     fastTextModel.set_pos(fastTextModel.preprocess(tagger, fastTextModel.sentences_pos))
@@ -255,7 +255,7 @@ def main():
     # np.save('dist_matrix.npy', dist_matrix)
     # np.save('sim_matrix.npy', sim_matrix)
 
-    # kmeans(dist_matrix, fastTextModel, 22, do_write=True)
+    kmeans(dist_matrix, fastTextModel, 22, do_write=True)
     # check_kmeans(dist_matrix, fastTextModel, 30)
 
 
