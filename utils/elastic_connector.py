@@ -48,7 +48,9 @@ class Connector:
             'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
             "product": "product",
             "shop": "shop",
-            "shop_review": "shop_review"
+            "shop_review": "shop_review",
+            "experiment_sentence": "experiment_sentence",
+            "experiment": "experiment"
         }
 
         for k, v in indexes.items():
@@ -64,7 +66,7 @@ class Connector:
     def index(self, index: str, doc: dict):
         try:
             res = self.es.index(index=index, doc_type='doc', body=doc)
-            return res['result']
+            return res
 
         except Exception as e:
             print("[Connector-index] Error: " + str(e), file=sys.stderr)
@@ -73,6 +75,7 @@ class Connector:
     def get_count(self, category: str, subcategory=None):
         try:
             index = self.get_domain(category)
+
             if not subcategory:
                 res = self.es.count(index=index)['count']
             else:
@@ -99,7 +102,7 @@ class Connector:
             return self.domain[category]
         except Exception as e:
             print("[get_domain] Error: " + str(e), file=sys.stderr)
-            return None
+            return category
 
     def _get_data(self, category, subcategory, body):
         index = self.domain[category]
@@ -253,6 +256,7 @@ class Connector:
             except Exception as e:
                 print("[Connector-get_index_breadcrums] Error: " + str(e), file=sys.stderr)
                 return None, 404
+
             if breadcrumbs:
                 values = [' | '.join(['Heureka.cz', val['key']['505'],
                                       val['key']['501']])  # + ' ' + str(val['doc_count'])
@@ -274,7 +278,7 @@ class Connector:
     def get_category_products(self, category):
         try:
             body = {
-                "size": 1000,
+                "size": 10000,
                 "query": {
                     "term": {
                         "category.keyword": {
@@ -453,7 +457,7 @@ class Connector:
                 print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
                 return None, 404
             body = {
-                "size": 1000,
+                "size": 10000,
                 "query": {
                     "bool": {
                         "must": [
@@ -512,11 +516,18 @@ class Connector:
                 ]
             }
             # get product category and domain from es, not more than 10k?
-            res = self._get_data(product_domain, product_category, body)
-            if res:
-                return res, 200
+            index = self.domain[product_domain]
+            res = self.es.search(index=index, body=body)
+            l = []
+            for d in res["hits"]["hits"]:
+                source = d["_source"]
+                source["_id"] = d["_id"]
+                l.append(source)
+
+            if l:
+                return l, 200
             else:
-                return res, 404
+                return l, 404
 
         except Exception as e:
             print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
@@ -569,11 +580,13 @@ class Connector:
                 return res, 200
             else:
                 return res, 404
+        except KeyError as e:
+            return [], 404
 
         except Exception as e:
             print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
             return None, 500
-        pass
+
 
     def get_newest_review(self, category, product_name):
         try:
@@ -781,4 +794,293 @@ class Connector:
         except Exception as e:
             print("[get_indexes_health] Error: " + str(e), file=sys.stderr)
             return None, 500
-        pass
+
+    def get_experiments(self):
+        try:
+            body = {
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            res = self.es.search(index='experiment', body=body)
+
+            if res["hits"]["hits"]:
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+
+                    l.append(source)
+                return l, 200
+            else:
+                return None, 200
+
+        except Exception as e:
+            print("[get_experiments] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_experiments_by_category(self, category_name):
+        try:
+            body = {
+                "query": {
+                    "term": {
+                        "category.keyword": {
+                            "value": category_name,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            res = self.es.search(index='experiment', body=body)
+
+            if res["hits"]["hits"]:
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+                    source['clusters_pos'], _ = self.get_experiment_clusters(source["_id"], 'pos')
+                    source['clusters_con'], _ = self.get_experiment_clusters(source["_id"], 'con')
+                    l.append(source)
+                return l, 200
+            else:
+                return None, 200
+
+        except Exception as e:
+            print("[get_experiments_by_category] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_experiment_clusters(self, experiment_id, cluster_type):
+        try:
+            body = {
+                "size": 10000,
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {
+                                    "experiment_id.keyword": {
+                                        "value": experiment_id,
+                                        "boost": 1.0
+                                    }
+                                }
+                            },
+                            {
+                                "term": {
+                                    "type.keyword": {
+                                        "value": cluster_type,
+                                        "boost": 1.0
+                                    }
+                                }
+                            }
+                        ],
+                        "adjust_pure_negative": True,
+                        "boost": 1.0
+                    }
+                }
+            }
+            res = self.es.search(index='experiment_cluster', body=body)
+
+            if res["hits"]["hits"]:
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+                    source['sentences'], _ = self.get_experiment_clusters_sentences(source["_id"])
+                    l.append(source)
+                return l, 200
+            else:
+                return [], 200
+
+        except Exception as e:
+            print("[get_experiment_clusters] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_experiment_clusters_sentences(self, cluster_id):
+        try:
+            body = {
+                "size": 10000,
+                "query": {
+                    "term": {
+                        "cluster_number.keyword": {
+                            "value": cluster_id,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            res = self.es.search(index='experiment_sentence', body=body)
+
+            if res["hits"]["hits"]:
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    l.append(source)
+                return l, 200
+            else:
+                return None, 200
+
+        except Exception as e:
+            print("[get_experiment_clusters_sentences] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_experiment_reviews(self, experiment_id, category_name, product_name=None):
+        try:
+            if not product_name:
+                print(category_name)
+                body = {
+                    "size": 10000,
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "term": {
+                                        "category_name.keyword": {
+                                            "value": category_name,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "experiment_id.keyword": {
+                                            "value": experiment_id,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                }
+                            ],
+                            "adjust_pure_negative": True,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            else:
+                print(product_name)
+                body = {
+                    "size": 10000,
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "term": {
+                                        "product_name.keyword": {
+                                            "value": product_name,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "experiment_id.keyword": {
+                                            "value": experiment_id,
+                                            "boost": 1.0
+                                        }
+                                    }
+                                }
+                            ],
+                            "adjust_pure_negative": True,
+                            "boost": 1.0
+                        }
+                    }
+                }
+
+            res = self._get_data('experiment_sentence',None, body)
+            if res:
+                return res, 200
+            else:
+                return None, 404
+
+        except Exception as e:
+            print("[get_experiment_reviews] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def delete_experiment(self, experiment_id):
+        try:
+            body = {
+                "query" : {
+                    "term": {
+                        "_id": experiment_id
+                    }
+                }
+            }
+            self.es.delete_by_query(index="experiment", body=body)
+
+            body = {
+                "query": {
+                    "term": {
+                        "experiment_id.keyword": {
+                            "value": experiment_id,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            }
+            res = self.es.delete_by_query(index="experiment_sentence", body=body)
+            return res, 200
+
+        except Exception as e:
+            print("[delete_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def update_experiment(self, experiment_id, sal_pos, sal_con):
+        try:
+            body = {
+                "doc":{
+                    "sal_pos": sal_pos,
+                    "sal_con": sal_con
+                }
+            }
+            res = self.es.update(index='experiment', id=experiment_id, body=body)
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def update_experiment_cluster_name(self, experiment_cluster_id, cluster_name):
+        try:
+            body = {
+                "doc":{
+                    "cluster_name": cluster_name,
+                }
+            }
+            res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)
+            self.es.indices.refresh(index="experiment_cluster")
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def update_experiment_cluster_topics(self, experiment_cluster_id, topics):
+        try:
+            body = {
+                "doc":{
+                    "topics": topics,
+                }
+            }
+            res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)
+            self.es.indices.refresh(index="experiment_cluster")
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500

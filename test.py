@@ -1,12 +1,11 @@
 import json, sys
-
+from datetime import datetime, timezone
 from utils.discussion import Files
 from utils.morpho_tagger import MorphoTagger
 from utils.elastic_connector import Connector
-from utils.generate_dataset import GeneratorController
+
 sys.path.append('../')
 
-from backend.app.controllers.ExperimentController import ExperimentController
 month_mapper = {
     "ledna": "January",
     "února": "February",
@@ -89,10 +88,12 @@ def statistics_sentences(path):
         if v < 10:
             break
 
+
 def test():
     with open('irrelevant.tsv', 'w') as file:
         for i in range(499, 2000):
-            file.write(str(i)+'\t'+'0'+'\ta\t\n')
+            file.write(str(i) + '\t' + '0' + '\ta\t\n')
+
 
 def validate_clusters(file1, file2):
     def _load_tsv(f):
@@ -111,10 +112,10 @@ def validate_clusters(file1, file2):
     f_same = {}
     for key, value in f_1.items():
         for val in value:
-            f_1_reversed[val]=key
+            f_1_reversed[val] = key
 
     for key in f_2.keys():
-        f_same[key]=[]
+        f_same[key] = []
 
     for key_main, value in f_2.items():
         i = 0
@@ -129,36 +130,90 @@ def validate_clusters(file1, file2):
         print(freq_sort)
 
 
-def main():
-    #validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
-    #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
+def initExperimentSentences(con: Connector):
+    sentence = {"review_id": "2h43lW4BkCiHlXNo5DF4",
+                "experiment_id": "CxI0pnABDlca16lgqpBL",
+                "cluster_number": 0,
+                "product_name": "produkt",
+                "category_name": "category1",
+                "topic_number": 0,
+                "sentence": "Nevy\u0159e\u0161en\u00e9 d\u00e1vkov\u00e1n\u00ed",
+                "sentence_index": 0,
+                "sentence_pos": ["vyreseny", "davkovani"],
+                "sentence_type": "cons",
+                }
+    con.index('experiment_sentence', sentence)
+    con.es.indices.refresh(index="experiment_sentence")
 
-    config = {
+
+def initExperiment(con: Connector):
+    experiment = {
         "topics_per_cluster": 3,
-        "download_data": False,
-        "clusters_count": 7,
+        "clusters_pos_count": 7,
+        "clusters_con_count": 6,
         "cluster_method": "kmeans",
         "embedding_method": "sent2vec_dist",
-        "categories": ['aditiva']
+        "category": 'aditiva2',
+        "date": datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'),
+        "pos_sentences": 4200,
+        "con_sentences": 4200,
+        "topics_pos": [
+            {
+                'cluster_number': 0,
+                'topics': ["topic", "topic"]
+            },
+            {
+                'cluster_number': 1,
+                'topics': ["topic", "topic"]
+            }
+        ],
+        "topics_con": [
+            {
+                'cluster_number': 0,
+                'topics': ["topic", "topic"]
+            },
+            {
+                'cluster_number': 1,
+                'topics': ["topic", "topic"]
+            }
+        ],
+    }
+    res = con.index(index="experiment", doc=experiment)
+    con.es.indices.refresh(index="experiment")
+    #res = con.delete_experiment("ChIwpnABDlca16lgy5BN")
+    print(res)
+
+
+def main():
+    # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
+    #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
+    #from backend.app.controllers.ReviewExperimentController import ReviewController
+    from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    config = {
+        "topics_per_cluster": 3,
+        "save_data": True,
+        "clusters_pos_count": 7,
+        "clusters_con_count": 6,
+        "cluster_method": "kmeans",
+        "embedding_method": "sent2vec_dist",
+        "category": 'aditiva'
+    }
+
+    config = {
+        "topics_per_cluster": 1,
+        "save_data": True,
+        "clusters_pos_count": 7,
+        "clusters_con_count": 6,
+        "cluster_method": "kmeans",
+        "embedding_method": "sent2vec_dist",
+        "category": 'VIF Super Benzin Aditiv 500 ml'
     }
     con = Connector()
-    #res = con.get_reviews_from_category(config['categories'][0])
-    #print(res[0][0])
 
-    cnt = ExperimentController(con)
-    cnt.cluster_similarity(config)
-
-    # res = con.index('shop_review', r_d)
-    # print(res)
-    # return
-    # res = con.get_review_by_shop_author_timestr(r_d['shop_name'], r_d['author'], r_d['date'])
-    # print(res)
-    # res = con.match_all('shop_review')
-    # res = con.get_shop_by_name(shop_d['name'])
-    #res = con.get_subcategories_count("Bile zbozi")
-    #res = con.get_product_breadcrums()
-    #print(res)
-
+    res = con.get_category_products('ucebnice')
+    print(res)
+    #cnt = ExperimentClusterController(con)
+    #cnt.cluster_similarity(config)
 
 
 if __name__ == '__main__':

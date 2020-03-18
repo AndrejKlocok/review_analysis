@@ -226,11 +226,14 @@ class ReviewRatingRegression(DataProcessor):
         """Creates examples for the training and dev sets."""
         examples = []
         for (i, line) in enumerate(lines):
-            guid = "%s-%s" % (set_type, i)
-            text_a = line[3]
-            label = float(line[1])
-            examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+            try:
+                guid = "%s-%s" % (set_type, i)
+                text_a = line[3]
+                label = float(line[1])
+                examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+            except Exception as e:
+                print('{}: for {}'.format(str(e), str(i)))
         return examples
 
 

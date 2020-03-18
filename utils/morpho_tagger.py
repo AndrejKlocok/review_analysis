@@ -51,9 +51,10 @@ class Preprocess:
 
 
 class WordPos:
-    def __init__(self, lemma, tag):
+    def __init__(self, lemma, tag, token=None):
         self.lemma = lemma
         self.tag = tag
+        self.token = token
 
     def __str__(self):
         return json.dumps(self.__dict__, ensure_ascii=False).encode('utf8').decode()
@@ -87,23 +88,23 @@ class MorphoTagger:
         if self.tagger is None:
             raise Exception("[morpho_tagger] tokenizer not created")
 
-    def pos_tagging(self, text, stem=True):
+    def pos_tagging(self, text, stem=True, preprocess=True):
         lemmas = TaggedLemmas()
         tokens = TokenRanges()
         forms = Forms()
         sentences = []
 
+        vanilla_text = text
         # remove diacritic
         text = unidecode(text)
-
-        # remove stop words
-        text = " ".join([w if w not in self.preprocesor.stop_words else "" for w in text.split()])
-
-        # replace smileys
-        text = self.preprocesor.replace_emoji(text)
-
-        # lower all text
-        text = text.lower()
+        if preprocess:
+            # remove stop words
+            text = " ".join([w if w not in self.preprocesor.stop_words else "" for w in text.split()])
+            # lower all text
+            text = text.lower()
+            # replace smileys
+            text = self.preprocesor.replace_emoji(text)
+            vanilla_text = text
 
         # POS taging
         self.tokenizer.setText(text)
@@ -113,7 +114,8 @@ class MorphoTagger:
             for i in range(len(lemmas)):
                 lemma = lemmas[i].lemma
                 tag = lemmas[i].tag
-
+                token = tokens[i]
+                token_text = vanilla_text[token.start:token.start+token.length]
                 # remove diacritic
                 lemma = unidecode(lemma)
                 # eng flag
@@ -122,7 +124,10 @@ class MorphoTagger:
                 # '-' is not boundary token
                 # boundary token
                 if tag[0] == "Z" and lemma != "-":
-                    sentences.append(sentence)
+                    if not preprocess:
+                        sentence.append(WordPos(lemma, tag, token_text))
+                    if sentence:
+                        sentences.append(sentence)
                     sentence = []
                     continue
                 # we want to work with flexible POS, thus we dont need stop words
@@ -144,9 +149,10 @@ class MorphoTagger:
                 # Stem
                 if stem and not eng_word:
                     lemma = cz_stem(lemma)
-                if lemma and len(lemma) > 2:
-                    sentence.append(WordPos(lemma, tag))
-            sentences.append(sentence)
+                if lemma and not preprocess or len(lemma) > 2:
+                    sentence.append(WordPos(lemma, tag, token_text))
+            if sentence:
+                sentences.append(sentence)
 
         return sentences
 
