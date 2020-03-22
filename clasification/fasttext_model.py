@@ -1,5 +1,5 @@
 from sklearn.decomposition import PCA
-from fse.models import Average, SIF
+from fse.models import Average, SIF, uSIF
 from fse import IndexedList
 from sklearn.metrics import silhouette_score
 from gensim.models.fasttext import load_facebook_model, FastText

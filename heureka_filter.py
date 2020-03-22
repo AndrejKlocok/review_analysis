@@ -1,19 +1,17 @@
-from clasification.bert_model import Bert_model
+from clasification.SVM_model import SVM_Classifier
 
 
 class HeurekaFilter:
-    def __init__(self, path, irrelevant_file_path):
-        labels = ['irrelevant', 'valid']
-        self.bert_model_filter = None
-        if path != '':
-            self.bert_model_filter = Bert_model(path, labels)
-            self.bert_model_filter.do_eval()
+    def __init__(self):
+
+        self.model = SVM_Classifier()
+        self.model.load_models()
 
         self.log_file = None
         self.index = 0
         try:
             # get last index from irrelevant tsv file
-            irrelevant_file = open(irrelevant_file_path, "r")
+            irrelevant_file = open(self.model.irrelevant_path, "r")
             for line in irrelevant_file:
                 row = line.split('\t')
 
@@ -38,12 +36,12 @@ class HeurekaFilter:
             return False
 
         # evaluate sentence with trained model, if we use one
-        if self.bert_model_filter:
-            if self.bert_model_filter.eval_example('a', sentence) == 'irrelevant':
-                if self.log_file:
-                    self.index += 1
-                    self.log_file.write('{0}\t1\ta\t{1}\n'.format(str(self.index), sentence))
-                return True
+
+        if self.model.eval_example(sentence) == 'irrelevant':
+            if self.log_file:
+                self.index += 1
+                self.log_file.write('{0}\t1\ta\t{1}\n'.format(str(self.index), sentence))
+            return True
 
         return False
 
@@ -53,12 +51,12 @@ class HeurekaFilter:
 
 
 def main():
-    heureka_filter = HeurekaFilter('../model/bert_irelevant')
+    heureka_filter = HeurekaFilter()
 
     with open('tmp/dataset_positive.txt', "r") as file:
         for line in file:
             line = line[:-1]
-            label = heureka_filter.is_irelevant(line)
+            label = heureka_filter.is_irrelevant(line)
             print(line + '\t' + label)
 
 

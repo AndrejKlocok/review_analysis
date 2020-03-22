@@ -587,7 +587,6 @@ class Connector:
             print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-
     def get_newest_review(self, category, product_name):
         try:
             index = self.domain[category]
@@ -932,6 +931,7 @@ class Connector:
                 l = []
                 for d in res["hits"]["hits"]:
                     source = d["_source"]
+                    source["_id"] = d["_id"]
                     l.append(source)
                 return l, 200
             else:
@@ -1002,7 +1002,7 @@ class Connector:
                     }
                 }
 
-            res = self._get_data('experiment_sentence',None, body)
+            res = self._get_data('experiment_sentence', None, body)
             if res:
                 return res, 200
             else:
@@ -1015,7 +1015,7 @@ class Connector:
     def delete_experiment(self, experiment_id):
         try:
             body = {
-                "query" : {
+                "query": {
                     "term": {
                         "_id": experiment_id
                     }
@@ -1043,7 +1043,7 @@ class Connector:
     def update_experiment(self, experiment_id, sal_pos, sal_con):
         try:
             body = {
-                "doc":{
+                "doc": {
                     "sal_pos": sal_pos,
                     "sal_con": sal_con
                 }
@@ -1058,7 +1058,7 @@ class Connector:
     def update_experiment_cluster_name(self, experiment_cluster_id, cluster_name):
         try:
             body = {
-                "doc":{
+                "doc": {
                     "cluster_name": cluster_name,
                 }
             }
@@ -1070,10 +1070,75 @@ class Connector:
             print("[update_experiment] Error: " + str(e), file=sys.stderr)
             return None, 500
 
+    def merge_experiment_cluster(self, cluster_d_from, cluster_d_to):
+        try:
+            sentences = cluster_d_from['cluster_sentences_count'] + cluster_d_to['cluster_sentences_count']
+            topics_count = len(cluster_d_to['topics'])
+            topics = cluster_d_to['topics'] + cluster_d_from['topics']
+
+            body = {
+                "script": {
+                    "source": "ctx._source.topic_number += params.topic_cnt;ctx._source.cluster_number = params.cluster_id",
+                    "lang": "painless",
+                    "params": {
+                        "topic_cnt": topics_count,
+                        "cluster_id": cluster_d_to['_id']
+                    }
+                },
+                "query": {
+                    "term": {
+                        "cluster_number.keyword": cluster_d_from['_id']
+                    }
+                }
+            }
+            res = self.es.update_by_query(index='experiment_sentence', body=body)
+            self.es.indices.refresh(index="experiment_sentence")
+
+            body = {
+                "doc": {
+                    'cluster_sentences_count': sentences,
+                    'topics': topics
+                }
+            }
+            res = self.es.update(index='experiment_cluster', id=cluster_d_to['_id'], body=body)
+            if res['result'] != 'updated':
+                raise Exception('cluster: {} :was not updated'.format(cluster_d_to['cluster_name']))
+
+            res = self.es.delete(index="experiment_cluster", id=cluster_d_from['_id'])
+            if res['result'] != 'deleted':
+                raise Exception('cluster: {} :was not updated'.format(cluster_d_from['cluster_name']))
+
+            self.es.indices.refresh(index="experiment_cluster")
+
+            if cluster_d_from["type"] == "pos":
+                body = {
+                    "script": {
+                        "source": "ctx._source.clusters_pos_count--",
+                        "lang": "painless",
+                    }
+                }
+            else:
+                body = {
+                    "script": {
+                        "source": "ctx._source.clusters_con_count--",
+                        "lang": "painless",
+                    }
+                }
+            res = self.es.update(index='experiment', id=cluster_d_to['experiment_id'], body=body)
+            self.es.indices.refresh(index="experiment")
+
+            if res['result'] != 'updated':
+                raise Exception('experiment_cluster count was not updated')
+            return res, 200
+
+        except Exception as e:
+            print("[merge_experiment_cluster] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
     def update_experiment_cluster_topics(self, experiment_cluster_id, topics):
         try:
             body = {
-                "doc":{
+                "doc": {
                     "topics": topics,
                 }
             }

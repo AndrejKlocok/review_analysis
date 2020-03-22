@@ -208,9 +208,38 @@ def main():
         "embedding_method": "sent2vec_dist",
         "category": 'VIF Super Benzin Aditiv 500 ml'
     }
+
+    cluster_from = {
+        '_id': "gy1K5HABR2n6xeG4vIBU",
+        'cluster_name': "nejaka cena",
+        'cluster_number': 2,
+        'cluster_sentences_count': 181,
+        'experiment_id': "fS1K5HABR2n6xeG4u4DJ",
+        'topics': [
+            "lepsie sa neda",
+            "fungovat nafta opravdu",
+            "motor spotreba chod",
+        ],
+        "type": "pos"
+    }
+    cluster_to = {
+        '_id': "fi1K5HABR2n6xeG4vIAm",
+        'cluster_name': "dobra cena",
+        'cluster_number': 1,
+        'cluster_sentences_count': 162,
+        'experiment_id': "fS1K5HABR2n6xeG4u4DJ",
+        'topics': [
+            "lepsie sa neda",
+            "fungovat test dobry",
+            "motor spotreba pouzivat"
+        ],
+        "type": "pos"
+    }
+    # id, cluster_number, topic
+    [("oi1L5HABR2n6xeG4pYMN", "gy1K5HABR2n6xeG4vIBU", 0), ("oy1L5HABR2n6xeG4pYMR", "gy1K5HABR2n6xeG4vIBU", 1)]
     con = Connector()
 
-    res = con.get_category_products('ucebnice')
+    res = con.merge_experiment_cluster(cluster_from, cluster_to)
     print(res)
     #cnt = ExperimentClusterController(con)
     #cnt.cluster_similarity(config)
