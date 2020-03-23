@@ -36,6 +36,7 @@ class HeurekaCrawler:
         self.total_product_new_count = 0
         self.total_review_new_count_new = 0
         self.total_empty_reviews = 0
+        self.irrelevant_sentences_count = 0
 
         pass
 
@@ -90,6 +91,7 @@ class HeurekaCrawler:
                 for li in xml.find_all("li"):
                     text = li.get_text()
                     if self.bert_filter.is_irrelevant(text):
+                        self.irrelevant_sentences_count += 1
                         continue
                     review.add_pro(text)
             return l
@@ -120,6 +122,8 @@ class HeurekaCrawler:
             text = review_text.p.get_text()
             if not self.bert_filter.is_irrelevant(text):
                 review.set_summary(text)
+            else:
+                self.irrelevant_sentences_count += 1
 
         return review
 
@@ -175,6 +179,7 @@ class HeurekaCrawler:
                 for pro in xml.find_all('li'):
                     val = pro.get_text().strip()
                     if self.bert_filter.is_irrelevant(val):
+                        self.irrelevant_sentences_count+=1
                         continue
                     l_.append(val)
                     l_pos.append(_get_str_pos(self.tagger.pos_tagging(val)))
