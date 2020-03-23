@@ -721,6 +721,7 @@ def main():
               str(crawler.total_review_new_count_new) + "," +
               date.today().strftime("%d. %B %Y").lstrip("0"))
         print('Empty revs : '+ str(crawler.total_empty_reviews))
+        print('Irrelevant sentences : ' + str(crawler.irrelevant_sentences_count))
 
 
 if __name__ == '__main__':
