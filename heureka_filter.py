@@ -2,10 +2,12 @@ from clasification.SVM_model import SVM_Classifier
 
 
 class HeurekaFilter:
-    def __init__(self):
+    def __init__(self, useCls:bool):
 
-        self.model = SVM_Classifier()
-        self.model.load_models()
+        self.model = None
+        if useCls:
+            self.model = SVM_Classifier()
+            self.model.load_models()
 
         self.log_file = None
         self.index = 0
@@ -36,12 +38,12 @@ class HeurekaFilter:
             return False
 
         # evaluate sentence with trained model, if we use one
-
-        if self.model.eval_example(sentence) == 'irrelevant':
-            if self.log_file:
-                self.index += 1
-                self.log_file.write('{0}\t1\ta\t{1}\n'.format(str(self.index), sentence))
-            return True
+        if self.model:
+            if self.model.eval_example(sentence) == 'irrelevant':
+                if self.log_file:
+                    self.index += 1
+                    self.log_file.write('{0}\t1\ta\t{1}\n'.format(str(self.index), sentence))
+                return True
 
         return False
 

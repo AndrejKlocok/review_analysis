@@ -678,9 +678,9 @@ def main():
     # Elastic
     con = Connector()
 
-    model_path = '../model/bert_irelevant' if args['filter'] else ''
+    use_model = True if args['filter'] else False
     # Bert filter model
-    heureka_filter = HeurekaFilter(model_path, '../irrelevant.tsv')
+    heureka_filter = HeurekaFilter(use_model)
 
     # Crawler
     crawler = HeurekaCrawler(con, tagger, heureka_filter)

@@ -184,11 +184,32 @@ def initExperiment(con: Connector):
     print(res)
 
 
+def init_users(con):
+    from werkzeug.security import generate_password_hash, check_password_hash
+
+    user = {
+        'name': 'basic_user',
+        'password_hash': generate_password_hash('heslo'),
+        'level': 'user',
+    }
+    analyst = {
+        'name': 'analyst',
+        'password_hash': generate_password_hash('heslo'),
+        'level': 'analyst',
+    }
+    res = con.index(index="users", doc=user)
+    print(res)
+    res = con.index(index="users", doc=analyst)
+    print(res)
+    con.es.indices.refresh(index="users")
+
+
 def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
     #from backend.app.controllers.ReviewExperimentController import ReviewController
-    from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    #from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    #from backend.app.controllers.GenerateDataController import GenerateDataController
     config = {
         "topics_per_cluster": 3,
         "save_data": True,
@@ -235,15 +256,25 @@ def main():
         ],
         "type": "pos"
     }
-    # id, cluster_number, topic
-    [("oi1L5HABR2n6xeG4pYMN", "gy1K5HABR2n6xeG4vIBU", 0), ("oy1L5HABR2n6xeG4pYMR", "gy1K5HABR2n6xeG4vIBU", 1)]
+    content = {
+        'task_type': "embeddings",
+        'model_type': "general",
+        'sentence_type': "sentence = row",
+        'equal': False,
+        'sentence_min_len': 3,
+        'sentence_max_len': 24,
+        'categories': ['shop']
+    }
     con = Connector()
 
-    res = con.merge_experiment_cluster(cluster_from, cluster_to)
-    print(res)
+    #res = con.merge_experiment_cluster(cluster_from, cluster_to)
+    #print(res)
     #cnt = ExperimentClusterController(con)
     #cnt.cluster_similarity(config)
-
+    #res = con.get_user_by_name('basic_user')
+    #print(res)
+    res = con.get_reviews_from_shop('EVA.cz')
+    print(res)
 
 if __name__ == '__main__':
     main()

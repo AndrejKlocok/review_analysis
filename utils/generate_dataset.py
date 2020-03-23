@@ -37,7 +37,11 @@ class Generator:
         self.len_max = args['sentence_max_len']
 
     def parse_reviews(self, cat_name, sentences):
-        review_list, _ = self.__con.get_reviews_from_category(cat_name)
+
+        if cat_name == 'shop':
+            review_list, _ = self.__con.get_shop_reviews()
+        else:
+            review_list, _ = self.__con.get_reviews_from_category(cat_name)
 
         for review in review_list:
             review_sentences = []
@@ -234,7 +238,7 @@ class GeneratorController:
 
     def __embeddings_task(self, generator: Generator):
         d = {}
-        sentences = []
+
         try:
             sentences = generator.get_data_api_call(True)
             d['embbedings.txt'] = sentences

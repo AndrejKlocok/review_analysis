@@ -72,12 +72,14 @@ class Connector:
             print("[Connector-index] Error: " + str(e), file=sys.stderr)
             return None
 
-    def get_count(self, category: str, subcategory=None):
+    def get_count(self, category: str, subcategory=None, body=None):
         try:
             index = self.get_domain(category)
 
             if not subcategory:
                 res = self.es.count(index=index)['count']
+            elif body:
+                res = self.es.count(index='shop_review', body=body)['count']
             else:
                 # subcategory_domain = self.get_domain(subcategory)
                 body = {
@@ -106,7 +108,11 @@ class Connector:
 
     def _get_data(self, category, subcategory, body):
         index = self.domain[category]
-        cnt = self.get_count(category, subcategory)
+        if category == 'shop':
+            cnt = self.get_count(category, subcategory, body)
+        else:
+            cnt = self.get_count(category, subcategory)
+
         if cnt > self.max:
             return self.__scroll(index, body)
         else:
@@ -176,7 +182,7 @@ class Connector:
 
     def match_all(self, category):
         try:
-            body = {"query": {"match_all": {}}}
+            body = {"size": 10000,"query": {"match_all": {}}}
             return self._get_data(category, None, body)
 
         except Exception as e:
@@ -187,7 +193,7 @@ class Connector:
     def get_data_breadcrumbs(self):
         try:
             body = {
-                "size": 1000,
+                "size": 10000,
                 "_source": {
                     "includes": [
                         "category_list"
@@ -212,7 +218,7 @@ class Connector:
             return self._list_to_tree(values), 200
 
         except Exception as e:
-            print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
+            print("[Connector-get_data_breadcrumbs] Error: " + str(e), file=sys.stderr)
             return None, 500
         pass
 
@@ -258,9 +264,11 @@ class Connector:
                 return None, 404
 
             if breadcrumbs:
+                #values_shop, _ = self.get_shop_breadcrums()
                 values = [' | '.join(['Heureka.cz', val['key']['505'],
-                                      val['key']['501']])  # + ' ' + str(val['doc_count'])
+                                      val['key']['501']])
                           for val in res["aggregations"]["groupby"]["buckets"]]
+                values.append('Heureka.cz | shop')
 
                 return self._list_to_tree(values), 200
             else:
@@ -271,9 +279,114 @@ class Connector:
                 return category_to_domain
 
         except Exception as e:
-            print("[Connector-get_index_breadcrums] Error: " + str(e), file=sys.stderr)
+            print("[Connector-get_product_breadcrums] Error: " + str(e), file=sys.stderr)
             return None, 500
-        pass
+
+    def get_shop_breadcrums(self):
+        try:
+            body = {"size": 10000,"query": {"match_all": {}}}
+
+            res = self._get_data('shop', None, body)
+
+            values = [' | '.join(['Heureka.cz', 'shop',
+                                  val['name']])  # + ' ' + str(val['doc_count'])
+                      for val in res]
+
+            return values, 200
+
+        except Exception as e:
+            print("[Connector-get_shop_breadcrums] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_shops(self):
+        try:
+            body = {"size": 10000,"query": {"match_all": {}}}
+
+            res = self._get_data('shop', None, body)
+            all_revs = 0
+            all_prod = 0
+
+            for shop in res:
+                reviews_len = self.get_shop_rev_cnt(shop['name'])
+                shop['reviews_len'] = reviews_len
+                all_revs += reviews_len
+                all_prod += 1
+
+            out = sorted(res, key=itemgetter('reviews_len'), reverse=True)
+            d = {
+                'products': out,
+                'total_products': all_prod,
+                'total_reviews': all_revs
+            }
+            return d, 200
+
+        except Exception as e:
+            print("[Connector-get_shops] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_shop_rev_cnt(self, shop_name):
+        try:
+            body = {
+                "query": {
+                    "term": {
+                        "shop_name.keyword": {
+                            "value": shop_name,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            }
+
+            res = self.es.count(index='shop_review', body=body)['count']
+            return res
+
+        except Exception as e:
+            print("[Connector-get_shops] Error: " + str(e), file=sys.stderr)
+            return 0
+
+    def get_product_rev_cnt(self, product_name):
+        try:
+            body = {
+                "size": 1,
+                "query": {
+                    "term": {
+                        "product_name.keyword": {
+                            "value": product_name,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "_source": {
+                    "includes": [
+                        "category", "domain"
+                    ]
+                }
+            }
+            # get product category and domain from es
+            res = self.es.search(index='product', body=body)
+            try:
+                product_domain = res["hits"]["hits"][0]["_source"]['domain']
+            except Exception as e:
+                print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+                return 0
+
+            body = {
+                "query": {
+                    "term": {
+                        "product_name.keyword": {
+                            "value": product_name,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            }
+
+            res = self.es.count(index=product_domain, body=body)['count']
+            return res
+
+        except Exception as e:
+            print("[get_product_rev_cnt] Error: " + str(e), file=sys.stderr)
+            return 0
 
     def get_category_products(self, category):
         try:
@@ -313,13 +426,19 @@ class Connector:
             all_revs = 0
             all_prod = 0
 
+            products = []
+
             for product in res:
-                reviews, _ = self.get_reviews_from_product(product['product_name'])
-                product['reviews_len'] = len(reviews)
-                all_revs += len(reviews)
+                reviews_len = self.get_product_rev_cnt(product['product_name'])
+                all_revs += reviews_len
                 all_prod += 1
 
-            out = sorted(res, key=itemgetter('reviews_len'), reverse=True)
+                if reviews_len < 10:
+                    continue
+                product['reviews_len'] = reviews_len
+                products.append(product)
+
+            out = sorted(products, key=itemgetter('reviews_len'), reverse=True)
             d = {
                 'products': out,
                 'total_products': all_prod,
@@ -381,7 +500,7 @@ class Connector:
             return freq_sort
 
         except Exception as e:
-            print("[Connector-match_all] Error: " + str(e), file=sys.stderr)
+            print("[Connector-get_subcategories_count] Error: " + str(e), file=sys.stderr)
             return None
 
     def get_reviews_from_subcategory(self, category, subcategory):
@@ -428,6 +547,21 @@ class Connector:
             print("[get_reviews_from_subcategory] Error: " + str(e), file=sys.stderr)
             return None
         pass
+
+    def get_shop_reviews(self):
+        try:
+            body = {"size": 10000,"query": {"match_all": {}}}
+
+            res = self._get_data('shop_review', None, body)
+
+            if res:
+                return res, 200
+            else:
+                return res, 404
+
+        except Exception as e:
+            print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+            return None, 500
 
     def get_reviews_from_product(self, product):
         try:
@@ -532,7 +666,6 @@ class Connector:
         except Exception as e:
             print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
             return None, 500
-        pass
 
     def get_reviews_from_category(self, category):
         try:
@@ -547,35 +680,37 @@ class Connector:
                             "boost": 1.0
                         }
                     }
-                },
-                "_source": {
-                    "includes": [
-                        "author",
-                        "category",
-                        "cons",
-                        "cons_POS",
-                        "date",
-                        "domain",
-                        "pro_POS",
-                        "product_name",
-                        "pros",
-                        "rating",
-                        "recommends",
-                        "summary",
-                        "summary_POS"
-                    ],
-                    "excludes": []
-                },
-                "sort": [
-                    {
-                        "_doc": {
-                            "order": "asc"
-                        }
-                    }
-                ]
+                }
             }
             # get reviews
             res = self._get_data(domain, category, body)
+            if res:
+                return res, 200
+            else:
+                return res, 404
+        except KeyError as e:
+            return [], 404
+
+        except Exception as e:
+            print("[get_reviews_from_category] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_reviews_from_shop(self, shop_name):
+        try:
+
+            body = {
+                "size": 10000,
+                "query": {
+                    "term": {
+                        "shop_name.keyword": {
+                            "value": shop_name,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            }
+            # get reviews
+            res = self._get_data('shop_review', None, body)
             if res:
                 return res, 200
             else:
@@ -728,11 +863,8 @@ class Connector:
             index = "shop"
             body = {
                 "size": 1,
-                "query": {"term": {"name.keyword": {"value": shop_name, "boost": 1.0}}},
-                "_source": {
-                    "includes": ["name", "url_review", "domain", "url_shop", "info"],
-                    "excludes": []},
-                "sort": [{"_doc": {"order": "asc"}}]}
+                "query": {"term": {"name.keyword": {"value": shop_name, "boost": 1.0}}}
+            }
             res = self.es.search(index=index, body=body)
             # just one
             if res["hits"]["hits"]:
@@ -779,9 +911,6 @@ class Connector:
         except Exception as e:
             print("[delete_index] Error: " + str(e), file=sys.stderr)
             return None
-        pass
-
-    def update(self, domain):
         pass
 
     def get_indexes_health(self):
@@ -1149,3 +1278,33 @@ class Connector:
         except Exception as e:
             print("[update_experiment] Error: " + str(e), file=sys.stderr)
             return None, 500
+
+    def get_user_by_id(self, id):
+        try:
+            res = self.es.get(index='users', id=id)
+            source = res["_source"]
+            source["_id"] = res["_id"]
+            return source
+
+        except Exception as e:
+            print("[get_user_by_id] Error: " + str(e), file=sys.stderr)
+            return None
+
+    def get_user_by_name(self, name):
+        try:
+            body = {
+                "size": 1,
+                "query": {"term": {"name.keyword": {"value": name, "boost": 1.0}}}
+            }
+            res = self.es.search(index='users', body=body)
+            # just one
+            if res["hits"]["hits"]:
+                source = res["hits"]["hits"][0]["_source"]
+                source["_id"] = res["hits"]["hits"][0]["_id"]
+                return source
+
+            return None
+
+        except Exception as e:
+            print("[get_user_by_name] Error: " + str(e), file=sys.stderr)
+            return None
