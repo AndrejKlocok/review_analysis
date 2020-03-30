@@ -29,12 +29,12 @@ class HeurekaCrawler:
         ]
         self.connector = connector
         self.tagger = tagger
-        self.bert_filter = filter_model
+        self.filter_model = filter_model
 
         self.total_review_count = 0
         self.total_products_count = 0
         self.total_product_new_count = 0
-        self.total_review_new_count_new = 0
+        self.total_review_new_count = 0
         self.total_empty_reviews = 0
         self.irrelevant_sentences_count = 0
 
@@ -90,7 +90,7 @@ class HeurekaCrawler:
             if xml:
                 for li in xml.find_all("li"):
                     text = li.get_text()
-                    if self.bert_filter.is_irrelevant(text):
+                    if self.filter_model.is_irrelevant(text):
                         self.irrelevant_sentences_count += 1
                         continue
                     review.add_pro(text)
@@ -120,7 +120,7 @@ class HeurekaCrawler:
         # set summary
         if review_text.p:
             text = review_text.p.get_text()
-            if not self.bert_filter.is_irrelevant(text):
+            if not self.filter_model.is_irrelevant(text):
                 review.set_summary(text)
             else:
                 self.irrelevant_sentences_count += 1
@@ -178,8 +178,8 @@ class HeurekaCrawler:
             if xml:
                 for pro in xml.find_all('li'):
                     val = pro.get_text().strip()
-                    if self.bert_filter.is_irrelevant(val):
-                        self.irrelevant_sentences_count+=1
+                    if self.filter_model.is_irrelevant(val):
+                        self.irrelevant_sentences_count += 1
                         continue
                     l_.append(val)
                     l_pos.append(_get_str_pos(self.tagger.pos_tagging(val)))
@@ -187,7 +187,7 @@ class HeurekaCrawler:
 
         def _summary(xml):
             summary_text = xml.get_text().strip() if xml else ''
-            if summary_text and self.bert_filter.is_irrelevant(summary_text):
+            if summary_text and self.filter_model.is_irrelevant(summary_text):
                 return [], []
             return summary_text, _get_str_pos(self.tagger.pos_tagging(summary_text))
 
@@ -235,7 +235,6 @@ class HeurekaCrawler:
                 pass
 
         return False
-
 
     def parse_shop_page(self, shop_list):
         """
@@ -540,15 +539,12 @@ class HeurekaCrawler:
                 review_new_count_new += r_n_c_n
 
             category = category.replace(',', '')
-            print(category + "," + str(review_count) + "," +
-                  str(products_count) + "," +
-                  str(product_new_count) + "," +
-                  str(review_new_count_new) + "," +
-                  date.today().strftime("%d. %B %Y").lstrip("0"))
+            self.submit_statistic(category, review_count, products_count,
+                                  product_new_count, review_new_count_new)
 
             self.total_review_count += review_count
             self.total_products_count += products_count
-            self.total_review_new_count_new += review_new_count_new
+            self.total_review_new_count += review_new_count_new
             self.total_product_new_count += product_new_count
 
         except Exception as e:
@@ -562,18 +558,18 @@ class HeurekaCrawler:
         """
         d = {
             'Elektronika': 'https://obchody.heureka.cz/elektronika/',
-            #'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
-            #'Dum a zahrada': 'https://obchody.heureka.cz/dum-zahrada/',
-            #'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
-            #'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
-            #'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
-            #'Filmy knihy hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
-            #'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
-            #'Sport': 'https://obchody.heureka.cz/sport/',
-            #'Hobby': 'https://obchody.heureka.cz/hobby/',
-            #'Jidlo a napoje': 'https://obchody.heureka.cz/jidlo-a-napoje/',
-            #'Stavebniny': 'https://obchody.heureka.cz/stavebniny/',
-            #'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
+            'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
+            'Dum a zahrada': 'https://obchody.heureka.cz/dum-zahrada/',
+            'Auto-moto': 'https://obchody.heureka.cz/auto-moto/',
+            'Detske zbozi': 'https://obchody.heureka.cz/detske-zbozi/',
+            'Obleceni a moda': 'https://obchody.heureka.cz/moda/',
+            'Filmy knihy hry': 'https://obchody.heureka.cz/filmy-hudba-knihy/',
+            'Kosmetika a zdravi': 'https://obchody.heureka.cz/kosmetika-zdravi/',
+            'Sport': 'https://obchody.heureka.cz/sport/',
+            'Hobby': 'https://obchody.heureka.cz/hobby/',
+            'Jidlo a napoje': 'https://obchody.heureka.cz/jidlo-a-napoje/',
+            'Stavebniny': 'https://obchody.heureka.cz/stavebniny/',
+            'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
         }
 
         def _task_shop_page(url):
@@ -653,7 +649,7 @@ class HeurekaCrawler:
                         review_new_count_new += r_n_c_n
                         self.total_review_count += review_count
                         self.total_products_count += products_count
-                        self.total_review_new_count_new += review_new_count_new
+                        self.total_review_new_count += review_new_count_new
                         self.total_product_new_count += product_new_count
 
                     except IOError:
@@ -663,6 +659,20 @@ class HeurekaCrawler:
 
         except Exception as e:
             print("[Task] " + e, file=sys.stderr)
+
+    def submit_statistic(self, category, review_count, products_count, product_new_count, review_new_count):
+        document = {
+            'category': category,
+            'review_count': review_count,
+            'affected_products': products_count,
+            'new_products': product_new_count,
+            'new_product_reviews': review_new_count,
+            'date': date.today().strftime("%d. %B %Y").lstrip("0")
+        }
+        res = self.connector.index(index='actualize_statistic', doc=document)
+        if res['result'] != 'created':
+            print('Statistic for {} was not created'.format(category), file=sys.stderr)
+            print(str(document), file=sys.stderr)
 
 
 def main():
@@ -684,7 +694,8 @@ def main():
     con = Connector()
 
     use_model = True if args['filter'] else False
-    # Bert filter model
+
+    # Filter model
     heureka_filter = HeurekaFilter(use_model)
 
     # Crawler
@@ -715,12 +726,10 @@ def main():
 
     if args['actualize'] or args['shop']:
         # Logs
-        print("Total," + str(crawler.total_review_count) + "," +
-              str(crawler.total_products_count) + "," +
-              str(crawler.total_product_new_count) + "," +
-              str(crawler.total_review_new_count_new) + "," +
-              date.today().strftime("%d. %B %Y").lstrip("0"))
-        print('Empty revs : '+ str(crawler.total_empty_reviews))
+        crawler.submit_statistic('All product domains', crawler.total_review_count, crawler.total_products_count,
+                                 crawler.total_product_new_count, crawler.total_review_new_count)
+
+        print('Empty revs : ' + str(crawler.total_empty_reviews))
         print('Irrelevant sentences : ' + str(crawler.irrelevant_sentences_count))
 
 

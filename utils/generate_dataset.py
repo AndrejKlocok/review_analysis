@@ -44,47 +44,51 @@ class Generator:
             review_list, _ = self.__con.get_reviews_from_category(cat_name)
 
         for review in review_list:
-            review_sentences = []
-            rating = round((int(review['rating'][:-1])) / 100, 3)
+            try:
+                review_sentences = []
+                rating = round((int(review['rating'][:-1])) / 100, 3)
 
-            # write data TODO refactor this code
-            if self.is_pro:
-                if self.is_just_sentence >= 2:
-                    sen = []
-                    [self.__get_sentence(pro, sen) for pro in review["pros"]]
-                    if sen:
-                        sen_txt = " ".join(s[:-1] for s in sen).strip()
-                        review_sentences.append(sen_txt + "\n")
-                else:
-                    [self.__get_sentence(pro, review_sentences) for pro in review["pros"]]
+                # write data TODO refactor this code
+                if self.is_pro:
+                    if self.is_just_sentence >= 2:
+                        sen = []
+                        [self.__get_sentence(pro, sen) for pro in review["pros"]]
+                        if sen:
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            review_sentences.append(sen_txt + "\n")
+                    else:
+                        [self.__get_sentence(pro, review_sentences) for pro in review["pros"]]
 
-            if self.is_con:
-                if self.is_just_sentence >= 2:
-                    sen = []
-                    [self.__get_sentence(c, sen) for c in review["cons"]]
-                    if sen:
-                        sen_txt = " ".join(s[:-1] for s in sen).strip()
-                        review_sentences.append(sen_txt + "\n")
-                else:
-                    [self.__get_sentence(c, review_sentences) for c in review["cons"]]
+                if self.is_con:
+                    if self.is_just_sentence >= 2:
+                        sen = []
+                        [self.__get_sentence(c, sen) for c in review["cons"]]
+                        if sen:
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            review_sentences.append(sen_txt + "\n")
+                    else:
+                        [self.__get_sentence(c, review_sentences) for c in review["cons"]]
 
-            if self.is_summary:
-                if self.is_just_sentence >= 2:
-                    sen = []
-                    self.__get_sentence(review["summary"], sen)
-                    if sen:
-                        sen_txt = " ".join(s[:-1] for s in sen).strip()
-                        review_sentences.append(sen_txt + "\n")
-                else:
-                    self.__get_sentence(review["summary"], review_sentences)
+                if self.is_summary:
+                    if self.is_just_sentence >= 2:
+                        sen = []
+                        self.__get_sentence(review["summary"], sen)
+                        if sen:
+                            sen_txt = " ".join(s[:-1] for s in sen).strip()
+                            review_sentences.append(sen_txt + "\n")
+                    else:
+                        self.__get_sentence(review["summary"], review_sentences)
 
-            if self.is_just_sentence == 3 and review_sentences:
-                review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
+                if self.is_just_sentence == 3 and review_sentences:
+                    review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
 
-            if self.rating:
-                review_sentences = [(s, rating) for s in review_sentences]
+                if self.rating:
+                    review_sentences = [(s, rating) for s in review_sentences]
 
-            sentences += review_sentences
+                sentences += review_sentences
+
+            except Exception as e:
+                print('Review {}, exception: {}', str(review), str(e))
 
     def get_sentences(self, shuffle=False):
         data = self.__con.get_subcategories_count(self.__domain)

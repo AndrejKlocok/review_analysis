@@ -79,6 +79,7 @@ class MorphoTagger:
     def load_tagger(self, path=None):
         if not path:
             path = "/home/andrej/Documents/school/Diplomka/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
+            # path = "/mnt/data/xkloco00_a18/review_analysis1/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
 
         self.tagger = Tagger.load(path)
         if self.tagger is None:

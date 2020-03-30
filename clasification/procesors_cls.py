@@ -424,6 +424,7 @@ def convert_to_features(examples,tokenizer,cls_token_at_end=False,max_seq_length
               }
     return inputs,[cls_token]+tokens_a+[sep_token],tokens_b+[sep_token]
 
+
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
     """Truncates a sequence pair in place to the maximum length."""
 

@@ -13,10 +13,10 @@ class Connector:
         # connect to localhost
         self.es = Elasticsearch()
         try:
-            res = self.es.search(index='domain', size=20)["hits"]
+            res = self.es.search(index='domain', size=30)["hits"]
         except NotFoundError:
             self.init_domains()
-            res = self.es.search(index='domain', size=20)["hits"]
+            res = self.es.search(index='domain', size=30)["hits"]
             pass
 
         self.domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
@@ -50,7 +50,10 @@ class Connector:
             "shop": "shop",
             "shop_review": "shop_review",
             "experiment_sentence": "experiment_sentence",
-            "experiment": "experiment"
+            "experiment": "experiment",
+            "experiment_cluster": "experiment_cluster",
+            "users": "users",
+            "actualize_statistic": "actualize_statistic",
         }
 
         for k, v in indexes.items():
@@ -616,25 +619,6 @@ class Connector:
                         "boost": 1.0
                     }
                 },
-                "_source": {
-                    "includes": [
-                        "author",
-                        "category",
-                        "cons",
-                        "cons_POS",
-                        "date_str",
-                        "date",
-                        "domain",
-                        "pro_POS",
-                        "product_name",
-                        "pros",
-                        "rating",
-                        "recommends",
-                        "summary",
-                        "summary_POS"
-                    ],
-                    "excludes": []
-                },
                 "docvalue_fields": [
                     {
                         "field": "date",
@@ -695,7 +679,7 @@ class Connector:
             print("[get_reviews_from_category] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def get_reviews_from_shop(self, shop_name):
+    def get_reviews_from_shop(self, shop_name, isEnough=False):
         try:
 
             body = {
@@ -707,14 +691,32 @@ class Connector:
                             "boost": 1.0
                         }
                     }
-                }
+                },
+                "sort":[
+                    {
+                        "date":{
+                            "order": "desc"
+                        }
+                    }
+                ]
             }
-            # get reviews
-            res = self._get_data('shop_review', None, body)
+            if isEnough:
+                res = self.es.search('shop_review', body=body)
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+                    l.append(source)
+                res = l
+            else:
+                # get reviews
+                res = self._get_data('shop_review', None, body)
+
             if res:
                 return res, 200
             else:
                 return res, 404
+
         except KeyError as e:
             return [], 404
 
@@ -1308,3 +1310,33 @@ class Connector:
         except Exception as e:
             print("[get_user_by_name] Error: " + str(e), file=sys.stderr)
             return None
+
+    def get_actualization_by_category(self, category_name):
+        try:
+            body = {
+                "size": 10000,
+                "query": {
+                    "term": {
+                        "category.keyword": {
+                            "value": category_name,
+                            "boost": 1.0
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "_doc": {
+                            "order": "asc"
+                        }
+                    }
+                ]
+            }
+            res = self._get_data('actualize_statistic', None, body)
+            if res:
+                return res, 200
+            else:
+                return res, 400
+
+        except Exception as e:
+            print("[get_actualization_by_category] Error: " + str(e), file=sys.stderr)
+            return None, 500

@@ -180,7 +180,7 @@ def initExperiment(con: Connector):
     }
     res = con.index(index="experiment", doc=experiment)
     con.es.indices.refresh(index="experiment")
-    #res = con.delete_experiment("ChIwpnABDlca16lgy5BN")
+    # res = con.delete_experiment("ChIwpnABDlca16lgy5BN")
     print(res)
 
 
@@ -201,15 +201,51 @@ def init_users(con):
     print(res)
     res = con.index(index="users", doc=analyst)
     print(res)
+
+
+def init_actualize(con: Connector):
     con.es.indices.refresh(index="users")
+    indexes = {
+        "experiment_cluster": "experiment_cluster",
+        "users": "users",
+        "actualize_statistic": "actualize_statistic",
+    }
+
+    for k, v in indexes.items():
+        d = {
+            "name": k,
+            "domain": v
+        }
+        res = con.es.index(index="domain", doc_type='doc', body=d)
+        print(res['result'])
+
+    con.es.indices.refresh(index="domain")
+    import pandas as pd
+
+    df = pd.read_csv('../stats.csv')
+
+    for _, row in df.iterrows():
+        d = {
+            'category': row['category'].strip(),
+            'review_count': row['reviews'],
+            'affected_products': row['affected_products'],
+            'new_products': row['new_products'],
+            'new_product_reviews': row['new_product_reviews'],
+            'date': row['date'].strip()
+        }
+        con.index(index='actualize_statistic', doc=d)
+    con.es.indices.refresh(index='actualize_statistic')
 
 
 def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
-    #from backend.app.controllers.ReviewExperimentController import ReviewController
-    #from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
-    #from backend.app.controllers.GenerateDataController import GenerateDataController
+    # from backend.app.controllers.ReviewExperimentController import ReviewController
+    # from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    # from backend.app.controllers.GenerateDataController import GenerateDataController
+    #
+    # from backend.app.controllers.ProductController import ProductController
+    from backend.app.controllers.DataController import DataController
     config = {
         "topics_per_cluster": 3,
         "save_data": True,
@@ -265,16 +301,24 @@ def main():
         'sentence_max_len': 24,
         'categories': ['shop']
     }
+    content = {
+        'category': "All product domains",
+    }
+
     con = Connector()
 
-    #res = con.merge_experiment_cluster(cluster_from, cluster_to)
-    #print(res)
-    #cnt = ExperimentClusterController(con)
-    #cnt.cluster_similarity(config)
-    #res = con.get_user_by_name('basic_user')
-    #print(res)
-    res = con.get_reviews_from_shop('EVA.cz')
+    data_cnt = DataController(con)
+    res = data_cnt.get_actualization_statistics(content)
+
+    # res = con.merge_experiment_cluster(cluster_from, cluster_to)
+    # print(res)
+    # cnt = ExperimentClusterController(con)
+    # cnt.cluster_similarity(config)
+    # res = con.get_user_by_name('basic_user')
+    # print(res)
+    # res = con.get_reviews_from_shop('EVA.cz')
     print(res)
+
 
 if __name__ == '__main__':
     main()

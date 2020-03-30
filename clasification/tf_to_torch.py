@@ -1,9 +1,9 @@
 import torch
 
-from pytorch_transformers.modeling_bert import BertConfig, BertForPreTraining, load_tf_weights_in_bert
+from transformers.modeling_bert import BertConfig, BertForPreTraining, load_tf_weights_in_bert
 
 
-bert_dir='bg_cs_pl_ru_cased_L-12_H-768_A-12'
+bert_dir='/tmp/xkloco00/multi_cased_L-12_H-768_A-12'
 
 tf_checkpoint_path=bert_dir+'/'+"bert_model.ckpt"
 bert_config_file = bert_dir+'/'+"bert_config.json"
