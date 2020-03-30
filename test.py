@@ -240,12 +240,12 @@ def init_actualize(con: Connector):
 def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
-    # from backend.app.controllers.ReviewExperimentController import ReviewController
+    from backend.app.controllers.ReviewExperimentController import ReviewController
     # from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
     # from backend.app.controllers.GenerateDataController import GenerateDataController
     #
     # from backend.app.controllers.ProductController import ProductController
-    from backend.app.controllers.DataController import DataController
+    # from backend.app.controllers.DataController import DataController
     config = {
         "topics_per_cluster": 3,
         "save_data": True,
@@ -302,14 +302,14 @@ def main():
         'categories': ['shop']
     }
     content = {
-        'category': "All product domains",
+        '_id': "V9rrm28B7fzBP-GLWEkv",
+        'category': 'aditiva',
     }
 
     con = Connector()
+    cnt = ReviewController(con)
 
-    data_cnt = DataController(con)
-    res = data_cnt.get_actualization_statistics(content)
-
+    res = cnt.get_review_experiment(content)
     # res = con.merge_experiment_cluster(cluster_from, cluster_to)
     # print(res)
     # cnt = ExperimentClusterController(con)

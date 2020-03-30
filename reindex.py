@@ -94,12 +94,20 @@ def main():
 
     print('Models loaded in {} seconds'.format(time.time() - start))
     for key, value in indexes.items():
-
+        rev_times = 0
         res_reviews = connnection.match_all(key)
         i = 0
         for review in res_reviews:
-            if i % 1000 == 0:
+            rev_time = time.time()
+            if i % 100 == 0:
                 print('{}:{}x review'.format(key, str(i)))
+                print('Avg time {}'.format(rev_times // 100))
+                rev_times = 0
+
+            # review is already processed
+            if len(review['pos_model'] > 1) or len(review['con_model'] > 1):
+                continue
+
             #review_text = merge_review_text(review['pros'], review['cons'], review['summary'])
             #if review_text:
             #    _, rating = eval_sentence(regression_model, review_text, useLabels=False)
@@ -124,6 +132,7 @@ def main():
 
             for pos in review['pros']:
                 try:
+                    model_review = []
                     s, label = eval_sentence(pos_con_model, pos)
                     if filter_model.is_irrelevant(s):
                         pros_ir = True
@@ -131,12 +140,13 @@ def main():
                     else:
                         pros.append(s)
                         pros_POS.append(get_str_pos(tagger.pos_tagging(s, stem=False)))
-
-                    pos_model.append([s, label, 'general_model'])
+                    model_review.append([s, label, 'general_model'])
 
                     for category, model in model_d.items():
                         s, label = eval_sentence(model, pos)
-                        pos_model.append(([s, label, category+'_model']))
+                        model_review.append([s, label, category+'_model'])
+
+                    pos_model.append(model_review)
 
                 except Exception as e:
                     print('[pos] sentence: {} is not classified'.format(pos), file=sys.stderr)
@@ -144,6 +154,7 @@ def main():
 
             for con in review['cons']:
                 try:
+                    model_review = []
                     s, label = eval_sentence(pos_con_model, con)
                     if filter_model.is_irrelevant(s):
                         cons_ir = True
@@ -151,11 +162,13 @@ def main():
                     else:
                         cons.append(s)
                         cons_POS.append(get_str_pos(tagger.pos_tagging(s, stem=False)))
-                    con_model.append([s, label, 'general_model'])
+                    model_review.append([s, label, 'general_model'])
 
                     for category, model in model_d.items():
                         s, label = eval_sentence(model, con)
-                        pos_model.append(([s, label, category+'_model']))
+                        model_review.append([s, label, category+'_model'])
+
+                    con_model.append(model_review)
 
                 except Exception as e:
                     print('[con] sentence: {} is not classified'.format(con), file=sys.stderr)
@@ -188,9 +201,7 @@ def main():
             if res['result'] != 'updated':
                 print('review: {} was not updated'.format(review['_id']))
             i += 1
-            print(body)
-            print(review['_id'])
-            break
+            rev_times += time.time() - rev_time
 
         print('Category {} reindexed in {} seconds'.format(key,time.time() - start))
         connnection.es.indices.refresh(index=value)

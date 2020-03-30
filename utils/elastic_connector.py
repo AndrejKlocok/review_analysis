@@ -279,6 +279,11 @@ class Connector:
                 for val in res["aggregations"]["groupby"]["buckets"]:
                     if val['key']['501'] not in category_to_domain:
                         category_to_domain[val['key']['501']] = val['key']['505']
+                # shops
+                body = {"size": 10000, "query": {"match_all": {}}}
+                for shop in self._get_data('shop', None, body):
+                    category_to_domain[shop['name']] = 'shop_review'
+
                 return category_to_domain
 
         except Exception as e:
@@ -1290,6 +1295,18 @@ class Connector:
 
         except Exception as e:
             print("[get_user_by_id] Error: " + str(e), file=sys.stderr)
+            return None
+
+    def get_review_by_id(self, id, category):
+        try:
+            index = self.category_to_domain[category]
+            res = self.es.get(index=index, id=id)
+            source = res["_source"]
+            source["_id"] = res["_id"]
+            return source
+
+        except Exception as e:
+            print("[get_review_by_id] Error: " + str(e), file=sys.stderr)
             return None
 
     def get_user_by_name(self, name):
