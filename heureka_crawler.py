@@ -7,7 +7,8 @@ from utils.elastic_connector import Connector
 from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
 from heureka_filter import HeurekaFilter
-
+from clasification.bert_model import Bert_model
+from clasification.SVM_model import SVM_Classifier
 
 class HeurekaCrawler:
     def __init__(self, connector, tagger, filter_model):
@@ -93,13 +94,17 @@ class HeurekaCrawler:
                     if self.filter_model.is_irrelevant(text):
                         self.irrelevant_sentences_count += 1
                         continue
-                    review.add_pro(text)
+                    l.append(text)
+                    #review.add_pro(text)
             return l
 
         review = Review()
         # author name
-        author = rev.find("strong").get_text().strip()
-        review.set_author(author)
+        try:
+            author = rev.find("strong").get_text().strip()
+            review.set_author(author)
+        except Exception as e:
+            review.set_author('Anonym')
 
         review_text = rev.find(class_="revtext")
         # set date
@@ -392,7 +397,6 @@ class HeurekaCrawler:
                     print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
                     print(category_url, file=sys.stderr)
                     break
-
                 review_list = infile.find_all(class_="review")
                 for rev in review_list:
                     try:
@@ -593,6 +597,138 @@ class HeurekaCrawler:
             except Exception as e:
                 print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
 
+    def task_repair(self):
+        def get_str_pos(l):
+            s = []
+            for sentence in l:
+                s.append([str(wb) for wb in sentence])
+            return s
+
+        def __clear_sentence(sentence: str) -> str:
+            sentence = sentence.strip().capitalize()
+            sentence = re.sub(r'\.{2,}', "", sentence)
+            sentence = re.sub(r'\t+', ' ', sentence)
+            if sentence[-1] != '.':
+                sentence += '.'
+
+            return sentence
+
+        def __eval_sentence(model: Bert_model, sentence: str, useLabels=True):
+            sentence = __clear_sentence(sentence)
+            return sentence, model.eval_example('a', sentence, useLabels)
+
+        def merge_review_text(pos: list, con: list, summary: str):
+            text = []
+            text += [__clear_sentence(s) for s in pos]
+            text += [__clear_sentence(s) for s in con]
+            text += [summary]
+            return ' '.join(text)
+
+        def __round_percentage(number):
+            return round(round(number * 100.0, -1))
+
+        path = '/home/andrej/Documents/school/Diplomka/model/'
+        # path = '/mnt/data/xkloco00_a18/model/'
+        regression_model = Bert_model(path + 'bert_regression', [])
+        regression_model.do_eval()
+        repaired_products = 0
+        repaired_reviews = 0
+        #products = self.connector.match_all('product')
+        products = [self.connector.get_product_by_name('Barum Bravuris 5HM 205/55 R16 91V')]
+        progress = 0
+        products_len = len(products)
+        for product in products:
+            progress += 1
+            if progress % 10000 == 0:
+                print('{} products of {}'.format(str(progress), str(products_len)))
+            revs = self.connector.get_product_rev_cnt(product['product_name'])
+            if revs >= 1:
+                review_cnt = 0
+                next_ref = " "
+                while next_ref:
+                    try:
+                        infile = BeautifulSoup(urlopen(product['url'] + next_ref), "lxml")
+                    except Exception as e:
+                        print("[task_repair] Error: " + str(e), file=sys.stderr)
+                        print(product['url'], file=sys.stderr)
+                        break
+
+                    review_list = infile.find_all(class_="review")
+                    # no reviews
+                    if not review_list:
+                        break
+
+                    for rev in review_list:
+                        try:
+                            review = self.parse_review(rev)
+
+                            if self.connector.get_review_by_product_author_timestr(
+                                    product['domain'], product['product_name'], review.author, review.date):
+                                continue
+
+                            rev_dic = {'author': review.author, 'rating': review.rating, 'recommends': review.recommends,
+                                       'pros': review.pros, 'cons': review.cons, 'summary': review.summary,
+                                       'date_str': review.date, 'category': product['category'],
+                                       'product_name': product['product_name'], 'domain': product['domain']}
+
+                            datetime_object = datetime.strptime(rev_dic["date_str"], '%d. %B %Y')
+                            rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
+                            pro_pos = []
+                            cons_pos = []
+
+                            for pos in rev_dic["pros"]:
+                                pro_pos.append(get_str_pos(self.tagger.pos_tagging(pos)))
+
+                            for con in rev_dic["cons"]:
+                                cons_pos.append(get_str_pos(self.tagger.pos_tagging(con)))
+
+                            summary_pos = get_str_pos(self.tagger.pos_tagging(rev_dic["summary"]))
+
+                            rev_dic["pro_POS"] = pro_pos
+                            rev_dic["cons_POS"] = cons_pos
+                            rev_dic["summary_POS"] = summary_pos
+
+                            review_text = merge_review_text(rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
+
+                            _, rating = __eval_sentence(regression_model, review_text, useLabels=False)
+
+                            rating = __round_percentage(rating)
+                            rev_dic['rating_model'] = '{}%'.format(rating)
+
+                            if not self.connector.index(product['domain'], rev_dic):
+                                print("Review of " + product['product_name'] + " " + " not created", sys.stderr)
+                            repaired_reviews += 1
+                            review_cnt += 1
+
+                        except Exception as e:
+                            print("[task_repair] Error: " + str(e), file=sys.stderr)
+                            print(product['product_name'], file=sys.stderr)
+                            pass
+
+                    if next_ref is None:
+                        break
+                    try:
+                        references = infile.find(class_="pag bot").find("a", "next")
+
+                        if references:
+                            next_ref = references.get('href')
+                        else:
+                            next_ref = None
+                            break
+                    except Exception as e:
+                        print("[task_repair] references Error: " + str(e), file=sys.stderr)
+                        print(product['product_name'], file=sys.stderr)
+                        next_ref = None
+                        pass
+
+                if review_cnt > 0:
+                    repaired_products += 1
+                if repaired_products > 0:
+                    break
+
+        print('Products repaired: {}'.format(str(repaired_products)))
+        print('Reviews pushed: {}'.format(str(repaired_reviews)))
+
     def task(self, category: str):
         """
         Tast for product reviews crawling
@@ -684,8 +820,10 @@ def main():
     parser.add_argument("-path", "-path", help="Path to the dataset folder")
     parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
     parser.add_argument("-filter", "-filter", help="Use model to filter irrelevant sentences", action="store_true")
+    parser.add_argument("-repair", "-repair", help="Repair corrupted product reviews", action="store_true")
 
     args = vars(parser.parse_args())
+
     # create tagger
     tagger = MorphoTagger()
     tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
@@ -714,13 +852,17 @@ def main():
             crawler.task_seed_aspect_extraction(category, args['path'])
         elif args['crawl']:
             # product reviews extraction
-            crawler.task(category, args)
+            crawler.task(category)
         else:
             break
 
     if args['shop']:
         # crawl shop reviews
         crawler.task_shop(args)
+
+    if args['repair']:
+        # repair product reviews
+        crawler.task_repair()
 
     print(time.time() - start)
 

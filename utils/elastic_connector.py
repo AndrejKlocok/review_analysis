@@ -68,7 +68,7 @@ class Connector:
 
     def index(self, index: str, doc: dict):
         try:
-            res = self.es.index(index=index, doc_type='doc', body=doc)
+            res = self.es.index(index=index, doc_type='doc', body=doc, timeout=30)
             return res
 
         except Exception as e:
@@ -745,7 +745,10 @@ class Connector:
 
     def get_review_by_product_author_timestr(self, category, product_name, author, date_str):
         try:
-            index = self.domain[category]
+            if category not in self.domain:
+                index = category
+            else:
+                index = self.domain[category]
             body = {
                 "size": 1000, "query": {"bool": {"must": [{
                     "bool": {"must": [
@@ -986,6 +989,15 @@ class Connector:
                     source["_id"] = d["_id"]
                     source['clusters_pos'], _ = self.get_experiment_clusters(source["_id"], 'pos')
                     source['clusters_con'], _ = self.get_experiment_clusters(source["_id"], 'con')
+                    source['clusters_pos_count'] = len(source['clusters_pos'])
+                    source['clusters_con_count'] = len(source['clusters_con'])
+                    source['pos_sentences'] = 0
+                    for cluster in source['clusters_pos']:
+                        source['pos_sentences'] += cluster['cluster_sentences_count']
+                    source['con_sentences'] = 0
+                    for cluster in source['clusters_con']:
+                        source['con_sentences'] += cluster['cluster_sentences_count']
+
                     l.append(source)
                 return l, 200
             else:
@@ -1032,6 +1044,8 @@ class Connector:
                     source = d["_source"]
                     source["_id"] = d["_id"]
                     source['sentences'], _ = self.get_experiment_clusters_sentences(source["_id"])
+
+                    source['cluster_sentences_count'] = len(source['sentences'])
                     l.append(source)
                 return l, 200
             else:
@@ -1071,7 +1085,7 @@ class Connector:
                     l.append(source)
                 return l, 200
             else:
-                return None, 200
+                return [], 404
 
         except Exception as e:
             print("[get_experiment_clusters_sentences] Error: " + str(e), file=sys.stderr)
@@ -1276,6 +1290,41 @@ class Connector:
             body = {
                 "doc": {
                     "topics": topics,
+                }
+            }
+            res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)
+            self.es.indices.refresh(index="experiment_cluster")
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def update_experiment_cluster_sentence(self, experiment_cluster_id, sentence_id, topic_numb):
+        try:
+            body = {
+                "doc": {
+                    "cluster_number": experiment_cluster_id,
+                    "topic_number": topic_numb
+                }
+            }
+            res = self.es.update(index='experiment_sentence', id=sentence_id, body=body)
+            self.es.indices.refresh(index="experiment_sentence")
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def append_experiment_cluster_topic(self, experiment_cluster_id, topics):
+        try:
+            res = self.es.get(index='experiment_cluster', id=experiment_cluster_id)
+            source = res["_source"]
+            source["_id"] = res["_id"]
+
+            body = {
+                "doc": {
+                    "topics": source['topics']+topics
                 }
             }
             res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)

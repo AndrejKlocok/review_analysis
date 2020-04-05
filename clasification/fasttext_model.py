@@ -30,12 +30,18 @@ class FastTextConfig:
 
 class FastTextModel:
     def __init__(self):
-        self.pretrained_model = None  # load_facebook_model('../model/fasttext/cc.cs.300.bin')
-        pass
+        try:
+            self.pretrained_model = load_facebook_model('../model/fasttext/cc.cs.300.bin')
+        except Exception as e:
+            self.pretrained_model = None
+
+    @staticmethod
+    def get_pretrained():
+        return load_facebook_model('../model/fasttext/cc.cs.300.bin')
 
     def __create_model(self, sentences_processed, pretrained: bool = False, model_conf: FastTextConfig = None):
         if not model_conf:
-            model_conf = FastTextConfig(100, 10, 5, 1e-2)
+            model_conf = FastTextConfig(300, 10, 5, 1e-2)
 
         if pretrained:
             model = self.pretrained_model
@@ -48,8 +54,7 @@ class FastTextModel:
                              sg=1,
                              iter=100)
             model.init_sims(replace=True)
-            #model = Average(model)
-
+            # model = Average(model)
 
         model = SIF(model, workers=10)
         model.train(IndexedList(sentences_processed))

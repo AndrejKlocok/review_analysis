@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from review_analysis.clasification.procesors_cls import InputExample, convert_to_features
 from transformers import BertForSequenceClassification, BertTokenizer, BertConfig
 import numpy as np

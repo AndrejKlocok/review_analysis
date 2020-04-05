@@ -246,7 +246,7 @@ def evaluate(args, model, tokenizer, prefix=""):
             processor = processors[eval_task]()
             dev_tsv = processor.get_dev_examples(args.data_dir)
             with open(output_eval_text, "w") as file:
-                file.write('sentence' +'\t' + 'label' + '\t' + 'prediction' + '\n')
+                #file.write('sentence' +'\t' + 'label' + '\t' + 'prediction' + '\n')
                 for idx, example in enumerate(dev_tsv):
                     file.write(str(example.text_a) + '\t' + str(example.label) + '\t' + str(preds[idx]) + '\n')
 

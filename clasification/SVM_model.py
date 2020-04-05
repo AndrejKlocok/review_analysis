@@ -14,11 +14,13 @@ class SVM_Classifier:
     def __init__(self):
         self.model = None
         self.usif_model = None
-        self.irrelevant_path = '/mnt/data/xkloco00_a18/model/irrelevant.tsv'
-        self.svm_path = '/mnt/data/xkloco00_a18/model/SVM/irrelevant_SVM.pkl'
-        self.sent2vec_path = '/mnt/data/xkloco00_a18/model/sent2vec/sent2vec.model'
-        self.fasttext_path = '/mnt/data/xkloco00_a18/model/fasttext/cc.cs.300.bin'
-        self.embedding_path = '/mnt/data/xkloco00_a18/model/embeddings.txt'
+        path = '/tmp/xkloco00/athena18/model/'
+        #path = '/mnt/data/xkloco00_a18/model/'
+        self.irrelevant_path = path + 'irrelevant.tsv'
+        self.svm_path = path + 'SVM/irrelevant_SVM.pkl'
+        self.sent2vec_path = path + 'sent2vec/sent2vec.model'
+        self.fasttext_path = path + 'fasttext/cc.cs.300.bin'
+        self.embedding_path = path + 'embeddings.txt'
 
     def load_sentences(self, path):
         data = []
@@ -43,8 +45,6 @@ class SVM_Classifier:
         self.usif_model = uSIF.load(self.sent2vec_path)
 
     def init__usif(self):
-        fasttext = load_facebook_model(self.fasttext_path)
-        self.usif_model = uSIF(fasttext, workers=16)
         embeddings = []
         i = 0
         with open(self.embedding_path, 'r') as f:
@@ -92,7 +92,7 @@ class SVM_Classifier:
         if y_pred[0] == '0':
             return 'irrelevant'
         else:
-            'normal'
+            return 'normal'
 
 
 def main():

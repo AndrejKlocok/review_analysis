@@ -233,14 +233,14 @@ def init_actualize(con: Connector):
             'new_product_reviews': row['new_product_reviews'],
             'date': row['date'].strip()
         }
-        con.index(index='actualize_statistic', doc=d)
+        con.es.index(index='actualize_statistic', doc_type='doc', body=d, request_timeout=30)
     con.es.indices.refresh(index='actualize_statistic')
 
 
 def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
-    from backend.app.controllers.ReviewExperimentController import ReviewController
+    # from backend.app.controllers.ReviewExperimentController import ReviewController
     # from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
     # from backend.app.controllers.GenerateDataController import GenerateDataController
     #
@@ -306,18 +306,27 @@ def main():
         'category': 'aditiva',
     }
 
-    con = Connector()
-    cnt = ReviewController(con)
+    config = {
+        'sentence_id': "Fy1s6XABR2n6xeG4z5Gf",
+        'cluster_id': "ai1s6XABR2n6xeG4ipB-",
+        'topic_number': 1,
+    }
+    config = {'cluster_id': 'Ny3SSXEBR2n6xeG4lqDW', 'topics': ['ssss']}
 
-    res = cnt.get_review_experiment(content)
-    # res = con.merge_experiment_cluster(cluster_from, cluster_to)
-    # print(res)
-    # cnt = ExperimentClusterController(con)
-    # cnt.cluster_similarity(config)
-    # res = con.get_user_by_name('basic_user')
-    # print(res)
-    # res = con.get_reviews_from_shop('EVA.cz')
-    print(res)
+
+    con = Connector()
+    res, retcode = con.append_experiment_cluster_topic(config['cluster_id'], config['topics'])
+
+    if res['result'] == 'updated':
+        return {'cluster_id': res['_id']}, retcode
+    else:
+        return {'error': 'Experiment was not created', 'error_code': retcode, 'reason': str(res)}
+    #product = 'Barum Bravuris 5HM 205/55 R16 91V'
+    #res = con.get_product_by_name(product)
+    #print(res)
+    #res = con.get_reviews_from_product(product)
+    #print(len(res[0]))
+
 
 
 if __name__ == '__main__':
