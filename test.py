@@ -241,7 +241,7 @@ def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
     # from backend.app.controllers.ReviewExperimentController import ReviewController
-    # from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
     # from backend.app.controllers.GenerateDataController import GenerateDataController
     #
     # from backend.app.controllers.ProductController import ProductController
@@ -311,16 +311,26 @@ def main():
         'cluster_id': "ai1s6XABR2n6xeG4ipB-",
         'topic_number': 1,
     }
-    config = {'cluster_id': 'Ny3SSXEBR2n6xeG4lqDW', 'topics': ['ssss']}
+    config = { 'cluster_from_id': "gi1K5HABR2n6xeG4vIBQ",
+               'cluster_to_id': "gi1K5HABR2n6xeG4vIBQ",
+               'topic_from_number': 0,
+               'topic_to_number': 1}
 
+    config = {
+        "topic_id": "uC3uUHEBR2n6xeG4fKl7",
+        "topic_number": 1,
+        'cluster_id': 'sC3tUHEBR2n6xeG40KnK',
+        'sentence_id': 'ui3uUHEBR2n6xeG4fKnW',
+    }
 
     con = Connector()
-    res, retcode = con.append_experiment_cluster_topic(config['cluster_id'], config['topics'])
+    cnt = ExperimentClusterController(con)
+    res, retcode = cnt.update_sentence(config)
+    print(retcode)
 
-    if res['result'] == 'updated':
-        return {'cluster_id': res['_id']}, retcode
-    else:
-        return {'error': 'Experiment was not created', 'error_code': retcode, 'reason': str(res)}
+    #res, retcode = con.append_experiment_cluster_topic(config['cluster_id'], config['topics'])
+
+
     #product = 'Barum Bravuris 5HM 205/55 R16 91V'
     #res = con.get_product_by_name(product)
     #print(res)

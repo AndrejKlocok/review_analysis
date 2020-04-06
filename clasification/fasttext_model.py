@@ -41,7 +41,7 @@ class FastTextModel:
 
     def __create_model(self, sentences_processed, pretrained: bool = False, model_conf: FastTextConfig = None):
         if not model_conf:
-            model_conf = FastTextConfig(300, 10, 5, 1e-2)
+            model_conf = FastTextConfig(100, 10, 5, 1e-2)
 
         if pretrained:
             model = self.pretrained_model

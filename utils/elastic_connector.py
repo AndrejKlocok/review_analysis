@@ -68,7 +68,8 @@ class Connector:
 
     def index(self, index: str, doc: dict):
         try:
-            res = self.es.index(index=index, doc_type='doc', body=doc, timeout=30)
+            res = self.es.index(index=index, doc_type='doc', body=doc)
+            self.es.indices.refresh(index=index)
             return res
 
         except Exception as e:
@@ -951,6 +952,16 @@ class Connector:
                 for d in res["hits"]["hits"]:
                     source = d["_source"]
                     source["_id"] = d["_id"]
+                    source['clusters_pos'], _ = self.get_experiment_clusters(source["_id"], 'pos')
+                    source['clusters_con'], _ = self.get_experiment_clusters(source["_id"], 'con')
+                    source['clusters_pos_count'] = len(source['clusters_pos'])
+                    source['clusters_con_count'] = len(source['clusters_con'])
+                    source['pos_sentences'] = 0
+                    for cluster in source['clusters_pos']:
+                        source['pos_sentences'] += cluster['cluster_sentences_count']
+                    source['con_sentences'] = 0
+                    for cluster in source['clusters_con']:
+                        source['con_sentences'] += cluster['cluster_sentences_count']
 
                     l.append(source)
                 return l, 200
@@ -1001,7 +1012,7 @@ class Connector:
                     l.append(source)
                 return l, 200
             else:
-                return None, 200
+                return None, 400
 
         except Exception as e:
             print("[get_experiments_by_category] Error: " + str(e), file=sys.stderr)
@@ -1044,7 +1055,7 @@ class Connector:
                     source = d["_source"]
                     source["_id"] = d["_id"]
                     source['sentences'], _ = self.get_experiment_clusters_sentences(source["_id"])
-
+                    source['topics'], _ = self.get_experiment_clusters_topics(source["_id"])
                     source['cluster_sentences_count'] = len(source['sentences'])
                     l.append(source)
                 return l, 200
@@ -1053,6 +1064,35 @@ class Connector:
 
         except Exception as e:
             print("[get_experiment_clusters] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def get_experiment_clusters_topics(self, cluster_id):
+        try:
+            body = {
+                "size": 10000,
+                "query": {
+                    "term": {
+                        "cluster_number.keyword": {
+                            "value": cluster_id,
+                            "boost": 1.0
+                        }
+                    }
+                }
+            }
+            res = self.es.search(index='experiment_topic', body=body)
+
+            if res["hits"]["hits"]:
+                l = []
+                for d in res["hits"]["hits"]:
+                    source = d["_source"]
+                    source["_id"] = d["_id"]
+                    l.append(source)
+                return l, 200
+            else:
+                return [], 404
+
+        except Exception as e:
+            print("[get_experiment_clusters_sentences] Error: " + str(e), file=sys.stderr)
             return None, 500
 
     def get_experiment_clusters_sentences(self, cluster_id):
@@ -1222,16 +1262,11 @@ class Connector:
 
     def merge_experiment_cluster(self, cluster_d_from, cluster_d_to):
         try:
-            sentences = cluster_d_from['cluster_sentences_count'] + cluster_d_to['cluster_sentences_count']
-            topics_count = len(cluster_d_to['topics'])
-            topics = cluster_d_to['topics'] + cluster_d_from['topics']
-
             body = {
                 "script": {
-                    "source": "ctx._source.topic_number += params.topic_cnt;ctx._source.cluster_number = params.cluster_id",
+                    "source": "ctx._source.cluster_number = params.cluster_id",
                     "lang": "painless",
                     "params": {
-                        "topic_cnt": topics_count,
                         "cluster_id": cluster_d_to['_id']
                     }
                 },
@@ -1245,14 +1280,22 @@ class Connector:
             self.es.indices.refresh(index="experiment_sentence")
 
             body = {
-                "doc": {
-                    'cluster_sentences_count': sentences,
-                    'topics': topics
+                "script": {
+                    "source": "ctx._source.cluster_number = params.cluster_id",
+                    "lang": "painless",
+                    "params": {
+                        "cluster_id": cluster_d_to['_id']
+                    }
+                },
+                "query": {
+                    "term": {
+                        "cluster_number.keyword": cluster_d_from['_id']
+                    }
                 }
             }
-            res = self.es.update(index='experiment_cluster', id=cluster_d_to['_id'], body=body)
-            if res['result'] != 'updated':
-                raise Exception('cluster: {} :was not updated'.format(cluster_d_to['cluster_name']))
+
+            res = self.es.update_by_query(index='experiment_topic', body=body)
+            self.es.indices.refresh(index="experiment_topic")
 
             res = self.es.delete(index="experiment_cluster", id=cluster_d_from['_id'])
             if res['result'] != 'deleted':
@@ -1260,52 +1303,19 @@ class Connector:
 
             self.es.indices.refresh(index="experiment_cluster")
 
-            if cluster_d_from["type"] == "pos":
-                body = {
-                    "script": {
-                        "source": "ctx._source.clusters_pos_count--",
-                        "lang": "painless",
-                    }
-                }
-            else:
-                body = {
-                    "script": {
-                        "source": "ctx._source.clusters_con_count--",
-                        "lang": "painless",
-                    }
-                }
-            res = self.es.update(index='experiment', id=cluster_d_to['experiment_id'], body=body)
-            self.es.indices.refresh(index="experiment")
-
-            if res['result'] != 'updated':
-                raise Exception('experiment_cluster count was not updated')
             return res, 200
 
         except Exception as e:
             print("[merge_experiment_cluster] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def update_experiment_cluster_topics(self, experiment_cluster_id, topics):
-        try:
-            body = {
-                "doc": {
-                    "topics": topics,
-                }
-            }
-            res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)
-            self.es.indices.refresh(index="experiment_cluster")
-            return res, 200
-
-        except Exception as e:
-            print("[update_experiment] Error: " + str(e), file=sys.stderr)
-            return None, 500
-
-    def update_experiment_cluster_sentence(self, experiment_cluster_id, sentence_id, topic_numb):
+    def update_experiment_cluster_sentence(self, experiment_cluster_id, sentence_id, topic_numb, topic_id):
         try:
             body = {
                 "doc": {
                     "cluster_number": experiment_cluster_id,
-                    "topic_number": topic_numb
+                    "topic_number": topic_numb,
+                    "topic_id": topic_id,
                 }
             }
             res = self.es.update(index='experiment_sentence', id=sentence_id, body=body)
@@ -1313,26 +1323,55 @@ class Connector:
             return res, 200
 
         except Exception as e:
-            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            print("[update_experiment_cluster_sentence] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def append_experiment_cluster_topic(self, experiment_cluster_id, topics):
+    def update_experiment_cluster_topic(self, topic_id, topic_name):
         try:
-            res = self.es.get(index='experiment_cluster', id=experiment_cluster_id)
-            source = res["_source"]
-            source["_id"] = res["_id"]
-
             body = {
                 "doc": {
-                    "topics": source['topics']+topics
+                    "name": topic_name,
                 }
             }
-            res = self.es.update(index='experiment_cluster', id=experiment_cluster_id, body=body)
-            self.es.indices.refresh(index="experiment_cluster")
+            res = self.es.update(index='experiment_topic', id=topic_id, body=body)
+            self.es.indices.refresh(index="experiment_topic")
             return res, 200
 
         except Exception as e:
-            print("[update_experiment] Error: " + str(e), file=sys.stderr)
+            print("[update_experiment_cluster_sentence] Error: " + str(e), file=sys.stderr)
+            return None, 500
+
+    def update_experiment_cluster_sentences(self, topic_id_from,
+                                            cluster_id_to,  topic_numb_to, topic_id_to):
+        try:
+            body = {
+                "script": {
+                    "source": "ctx._source.cluster_number=params.cluster_id; ctx._source.topic_number=params.topic_number; ctx._source.topic_id=params.topic_id",
+                    "lang": "painless",
+                    "params": {
+                        "cluster_id": cluster_id_to,
+                        "topic_number": topic_numb_to,
+                        "topic_id": topic_id_to,
+                    }
+                },
+                "query": {
+                    "term": {
+                        "topic_id.keyword": topic_id_from
+                    }
+                },
+            }
+            res = self.es.update_by_query(index='experiment_sentence', body=body)
+            self.es.indices.refresh(index="experiment_sentence")
+
+            res = self.es.delete(index="experiment_topic", id=topic_id_from)
+            if res['result'] != 'deleted':
+                raise Exception('topic: {} :was not deleted'.format(topic_id_from))
+
+            self.es.indices.refresh(index="experiment_topic")
+            return res, 200
+
+        except Exception as e:
+            print("[update_experiment_cluster_sentence] Error: " + str(e), file=sys.stderr)
             return None, 500
 
     def get_user_by_id(self, id):
