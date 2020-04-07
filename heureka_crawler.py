@@ -7,11 +7,12 @@ from utils.elastic_connector import Connector
 from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
 from heureka_filter import HeurekaFilter
-from clasification.bert_model import Bert_model
-from clasification.SVM_model import SVM_Classifier
+from heureka_rating import HeurekaRating
+
 
 class HeurekaCrawler:
-    def __init__(self, connector, tagger, filter_model):
+    def __init__(self, connector: Connector, tagger: MorphoTagger, filter_model: HeurekaFilter,
+                 rating_model: HeurekaRating):
         self.categories = [
             'Elektronika',
             'Bile zbozi',
@@ -31,6 +32,7 @@ class HeurekaCrawler:
         self.connector = connector
         self.tagger = tagger
         self.filter_model = filter_model
+        self.rating_model = rating_model
 
         self.total_review_count = 0
         self.total_products_count = 0
@@ -95,7 +97,6 @@ class HeurekaCrawler:
                         self.irrelevant_sentences_count += 1
                         continue
                     l.append(text)
-                    #review.add_pro(text)
             return l
 
         review = Review()
@@ -222,6 +223,13 @@ class HeurekaCrawler:
                     'shop_name': shop_name,
                     'aspect': [],
                 }
+                review_text = self.rating_model.merge_review_text(
+                    r_d['pros'], r_d['cons'], r_d['summary'])
+
+                rating_model = self.rating_model.eval_sentence(review_text)
+                if rating_model:
+                    r_d['rating_model'] = rating_model
+
                 # check if review is not empty
                 if not r_d['pros'] and not r_d['cons'] and not r_d['summary']:
                     self.total_empty_reviews += 1
@@ -331,6 +339,7 @@ class HeurekaCrawler:
                 s.append([str(wb) for wb in sentence])
             return s
 
+        review_count = 0
         product_new_count = 0
         review_new_count_new = 0
         l = product.get_name().split("(")
@@ -339,8 +348,6 @@ class HeurekaCrawler:
         domain = self.connector.get_domain(category)
 
         if not self.connector.get_product_by_name(product_name):
-            product_new_count += 1
-            review_new_count_new += len(product.get_reviews())
             product_elastic = {
                 "product_name": product_name,
                 "category": sub_cat_name,
@@ -350,7 +357,10 @@ class HeurekaCrawler:
             }
 
             if not self.connector.index("product", product_elastic):
-                print("Product of " + product_name + " " + " not created")
+                print("Product of " + product_name + " " + " not created", sys.stderr)
+            else:
+                product_new_count += 1
+                review_new_count_new += len(product.get_reviews())
 
         # Save review elastic
         for rev in product.get_reviews():
@@ -373,10 +383,19 @@ class HeurekaCrawler:
             rev_dic["pro_POS"] = pro_pos
             rev_dic["cons_POS"] = cons_pos
             rev_dic["summary_POS"] = summary_pos
-            if not self.connector.index(domain, rev_dic):
-                print("Review of " + product_name + " " + " not created")
+            review_text = self.rating_model.merge_review_text(
+                rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
 
-        return product_new_count, review_new_count_new
+            rating_model = self.rating_model.eval_sentence(review_text)
+            if rating_model:
+                rev_dic['rating_model'] = rating_model
+
+            if not self.connector.index(domain, rev_dic):
+                print("Review of " + product_name + " " + " not created", sys.stderr)
+            else:
+                review_count += 1
+
+        return product_new_count, review_new_count_new, review_count
 
     def actualize_reviews(self, obj_product_dict, category_domain, fast: bool):
         """
@@ -535,10 +554,10 @@ class HeurekaCrawler:
             for _, product in actualized_dict_of_products.items():
                 # Statistics
                 products_count += 1
-                review_count += len(product.get_reviews())
 
-                # Save product elastic
-                p_n_c, r_n_c_n = self.add_to_elastic(product, category)
+                # Save product elastic and get statistics
+                p_n_c, r_n_c_n, rev_cnt = self.add_to_elastic(product, category)
+                review_count += rev_cnt
                 product_new_count += p_n_c
                 review_new_count_new += r_n_c_n
 
@@ -604,37 +623,10 @@ class HeurekaCrawler:
                 s.append([str(wb) for wb in sentence])
             return s
 
-        def __clear_sentence(sentence: str) -> str:
-            sentence = sentence.strip().capitalize()
-            sentence = re.sub(r'\.{2,}', "", sentence)
-            sentence = re.sub(r'\t+', ' ', sentence)
-            if sentence[-1] != '.':
-                sentence += '.'
-
-            return sentence
-
-        def __eval_sentence(model: Bert_model, sentence: str, useLabels=True):
-            sentence = __clear_sentence(sentence)
-            return sentence, model.eval_example('a', sentence, useLabels)
-
-        def merge_review_text(pos: list, con: list, summary: str):
-            text = []
-            text += [__clear_sentence(s) for s in pos]
-            text += [__clear_sentence(s) for s in con]
-            text += [summary]
-            return ' '.join(text)
-
-        def __round_percentage(number):
-            return round(round(number * 100.0, -1))
-
-        path = '/home/andrej/Documents/school/Diplomka/model/'
-        # path = '/mnt/data/xkloco00_a18/model/'
-        regression_model = Bert_model(path + 'bert_regression', [])
-        regression_model.do_eval()
         repaired_products = 0
         repaired_reviews = 0
-        #products = self.connector.match_all('product')
-        products = [self.connector.get_product_by_name('Barum Bravuris 5HM 205/55 R16 91V')]
+        products = self.connector.match_all('product')
+
         progress = 0
         products_len = len(products)
         for product in products:
@@ -642,7 +634,7 @@ class HeurekaCrawler:
             if progress % 10000 == 0:
                 print('{} products of {}'.format(str(progress), str(products_len)))
             revs = self.connector.get_product_rev_cnt(product['product_name'])
-            if revs >= 1:
+            if revs < 4:
                 review_cnt = 0
                 next_ref = " "
                 while next_ref:
@@ -666,10 +658,11 @@ class HeurekaCrawler:
                                     product['domain'], product['product_name'], review.author, review.date):
                                 continue
 
-                            rev_dic = {'author': review.author, 'rating': review.rating, 'recommends': review.recommends,
-                                       'pros': review.pros, 'cons': review.cons, 'summary': review.summary,
-                                       'date_str': review.date, 'category': product['category'],
-                                       'product_name': product['product_name'], 'domain': product['domain']}
+                            rev_dic = {'author': review.author, 'rating': review.rating,
+                                       'recommends': review.recommends, 'pros': review.pros, 'cons': review.cons,
+                                       'summary': review.summary, 'date_str': review.date,
+                                       'category': product['category'], 'product_name': product['product_name'],
+                                       'domain': product['domain']}
 
                             datetime_object = datetime.strptime(rev_dic["date_str"], '%d. %B %Y')
                             rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
@@ -688,22 +681,22 @@ class HeurekaCrawler:
                             rev_dic["cons_POS"] = cons_pos
                             rev_dic["summary_POS"] = summary_pos
 
-                            review_text = merge_review_text(rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
+                            review_text = self.rating_model.merge_review_text(
+                                rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
 
-                            _, rating = __eval_sentence(regression_model, review_text, useLabels=False)
-
-                            rating = __round_percentage(rating)
-                            rev_dic['rating_model'] = '{}%'.format(rating)
+                            rating_model = self.rating_model.eval_sentence(review_text)
+                            if rating_model:
+                                rev_dic['rating_model'] = rating_model
 
                             if not self.connector.index(product['domain'], rev_dic):
                                 print("Review of " + product['product_name'] + " " + " not created", sys.stderr)
-                            repaired_reviews += 1
-                            review_cnt += 1
+                            else:
+                                repaired_reviews += 1
+                                review_cnt += 1
 
                         except Exception as e:
                             print("[task_repair] Error: " + str(e), file=sys.stderr)
                             print(product['product_name'], file=sys.stderr)
-                            pass
 
                     if next_ref is None:
                         break
@@ -731,7 +724,7 @@ class HeurekaCrawler:
 
     def task(self, category: str):
         """
-        Tast for product reviews crawling
+        Task for product reviews crawling
         :param category:
         :return:
         """
@@ -780,9 +773,11 @@ class HeurekaCrawler:
                         product_reviews.append(product.get_name())
 
                         # add to elastic
-                        p_n_c, r_n_c_n = self.add_to_elastic(product, category)
+                        p_n_c, r_n_c_n, rev_cnt = self.add_to_elastic(product, category)
+                        review_count += rev_cnt
                         product_new_count += p_n_c
                         review_new_count_new += r_n_c_n
+
                         self.total_review_count += review_count
                         self.total_products_count += products_count
                         self.total_review_new_count += review_new_count_new
@@ -805,6 +800,7 @@ class HeurekaCrawler:
             'new_product_reviews': review_new_count,
             'date': date.today().strftime("%d. %B %Y").lstrip("0")
         }
+        print(document)
         res = self.connector.index(index='actualize_statistic', doc=document)
         if res['result'] != 'created':
             print('Statistic for {} was not created'.format(category), file=sys.stderr)
@@ -820,6 +816,7 @@ def main():
     parser.add_argument("-path", "-path", help="Path to the dataset folder")
     parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
     parser.add_argument("-filter", "-filter", help="Use model to filter irrelevant sentences", action="store_true")
+    parser.add_argument("-rating", "-rating", help="Use model to predicr rating of sentences", action="store_true")
     parser.add_argument("-repair", "-repair", help="Repair corrupted product reviews", action="store_true")
 
     args = vars(parser.parse_args())
@@ -831,13 +828,14 @@ def main():
     # Elastic
     con = Connector()
 
-    use_model = True if args['filter'] else False
-
     # Filter model
-    heureka_filter = HeurekaFilter(use_model)
+    heureka_filter = HeurekaFilter(args['filter'] )
+
+    # Rating model
+    heureka_rating = HeurekaRating(args['rating'])
 
     # Crawler
-    crawler = HeurekaCrawler(con, tagger, heureka_filter)
+    crawler = HeurekaCrawler(con, tagger, heureka_filter, heureka_rating)
 
     for category in crawler.categories:
         start = time.time()

@@ -69,6 +69,8 @@ class Connector:
     def index(self, index: str, doc: dict):
         try:
             res = self.es.index(index=index, doc_type='doc', body=doc)
+            if res['result'] != 'created':
+                raise Exception('Document was not indexed')
             self.es.indices.refresh(index=index)
             return res
 

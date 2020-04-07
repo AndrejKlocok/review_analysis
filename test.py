@@ -241,7 +241,7 @@ def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
     #                  '../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos15_sentence_vectors/kmeans_cos15_sentence_vectors.tsv')
     # from backend.app.controllers.ReviewExperimentController import ReviewController
-    from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
+    # from backend.app.controllers.ExperimentClusterController import ExperimentClusterController
     # from backend.app.controllers.GenerateDataController import GenerateDataController
     #
     # from backend.app.controllers.ProductController import ProductController
@@ -324,18 +324,19 @@ def main():
     }
 
     con = Connector()
-    cnt = ExperimentClusterController(con)
-    res, retcode = cnt.update_sentence(config)
-    print(retcode)
+    #cnt = ExperimentClusterController(con)
+    #res, retcode = cnt.update_sentence(config)
+    #print(retcode)
 
     #res, retcode = con.append_experiment_cluster_topic(config['cluster_id'], config['topics'])
 
+    con.get_product_by_name('Nokian WetProof 205/55 R16 91V')
 
-    #product = 'Barum Bravuris 5HM 205/55 R16 91V'
-    #res = con.get_product_by_name(product)
-    #print(res)
-    #res = con.get_reviews_from_product(product)
-    #print(len(res[0]))
+    product = 'Nokian WetProof 205/55 R16 91V'
+    res = con.get_product_by_name(product)
+    print(res)
+    res = con.get_reviews_from_product(product)
+    print(len(res[0]))
 
 
 
