@@ -25,15 +25,19 @@ class HeurekaRating:
         return sentence
 
     def eval_sentence(self, sentence: str):
-        if self.regression_model:
-            sentence = self.__clear_sentence(sentence)
+        try:
+            if self.regression_model:
+                sentence = self.__clear_sentence(sentence)
 
-            rating = self.regression_model.eval_example('a', sentence, False)
-            rating = self.__round_percentage(rating)
+                rating = self.regression_model.eval_example('a', sentence, False)
+                rating = self.__round_percentage(rating)
 
-            return '{}%'.format(rating)
+                return '{}%'.format(rating)
 
-        else:
+            else:
+                return ''
+        except Exception as e:
+            print("[eval_sentence] Error: " + str(e), file=sys.stderr)
             return ''
 
     def merge_review_text(self, pos: list, con: list, summary: str):
