@@ -1,4 +1,4 @@
-import re
+import re, sys
 from clasification.bert_model import Bert_model
 
 
@@ -13,11 +13,14 @@ class HeurekaRating:
             self.regression_model.do_eval()
 
     def __clear_sentence(self, sentence: str) -> str:
-        sentence = sentence.strip().capitalize()
-        sentence = re.sub(r'\.{2,}', "", sentence)
-        sentence = re.sub(r'\t+', ' ', sentence)
-        if sentence[-1] != '.':
-            sentence += '.'
+        try:
+            sentence = sentence.strip().capitalize()
+            sentence = re.sub(r'\.{2,}', "", sentence)
+            sentence = re.sub(r'\t+', ' ', sentence)
+            if sentence[-1] != '.':
+                sentence += '.'
+        except Exception as e:
+            print("[__clear_sentence] Error: " + str(e), file=sys.stderr)
 
         return sentence
 

@@ -29,12 +29,11 @@ class HeurekaFilter:
     def is_irrelevant(self, sentence):
         # TODO split sentences !
         # one word sentences are irrelevant
-        #if len(sentence.split()) <= 1:
-            # not necessary to archive one word reviews
-            # self.log_file.write(sentence + '\n')
-        #    return True
+        if len(sentence.split()) <= 1:
+            self.log_file.write(sentence + '\n')
+            return True
         # too long review sentence is kind of valid
-        if len(sentence.split()) > 8:
+        if len(sentence.split()) > 10:
             return False
 
         # evaluate sentence with trained model, if we use one

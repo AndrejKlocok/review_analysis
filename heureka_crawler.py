@@ -230,6 +230,11 @@ class HeurekaCrawler:
                 if rating_model:
                     r_d['rating_model'] = rating_model
 
+                if self.filter_model.model:
+                    r_d['filter_model'] = True
+                else:
+                    r_d['filter_model'] = False
+
                 # check if review is not empty
                 if not r_d['pros'] and not r_d['cons'] and not r_d['summary']:
                     self.total_empty_reviews += 1
@@ -364,36 +369,45 @@ class HeurekaCrawler:
 
         # Save review elastic
         for rev in product.get_reviews():
-            rev_dic = {'author': rev.author, 'rating': rev.rating, 'recommends': rev.recommends,
-                       'pros': rev.pros, 'cons': rev.cons, 'summary': rev.summary, 'date_str': rev.date,
-                       'category': sub_cat_name, 'product_name': product_name, 'domain': domain}
-            datetime_object = datetime.strptime(rev_dic["date_str"], '%d. %B %Y')
-            rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
-            pro_pos = []
-            cons_pos = []
+            try:
+                rev_dic = {'author': rev.author, 'rating': rev.rating, 'recommends': rev.recommends,
+                           'pros': rev.pros, 'cons': rev.cons, 'summary': rev.summary, 'date_str': rev.date,
+                           'category': sub_cat_name, 'product_name': product_name, 'domain': domain}
+                datetime_object = datetime.strptime(rev_dic["date_str"], '%d. %B %Y')
+                rev_dic["date"] = datetime_object.strftime('%Y-%m-%d')
+                pro_pos = []
+                cons_pos = []
 
-            for pos in rev_dic["pros"]:
-                pro_pos.append(get_str_pos(self.tagger.pos_tagging(pos)))
+                for pos in rev_dic["pros"]:
+                    pro_pos.append(get_str_pos(self.tagger.pos_tagging(pos)))
 
-            for con in rev_dic["cons"]:
-                cons_pos.append(get_str_pos(self.tagger.pos_tagging(con)))
+                for con in rev_dic["cons"]:
+                    cons_pos.append(get_str_pos(self.tagger.pos_tagging(con)))
 
-            summary_pos = get_str_pos(self.tagger.pos_tagging(rev_dic["summary"]))
+                summary_pos = get_str_pos(self.tagger.pos_tagging(rev_dic["summary"]))
 
-            rev_dic["pro_POS"] = pro_pos
-            rev_dic["cons_POS"] = cons_pos
-            rev_dic["summary_POS"] = summary_pos
-            review_text = self.rating_model.merge_review_text(
-                rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
+                rev_dic["pro_POS"] = pro_pos
+                rev_dic["cons_POS"] = cons_pos
+                rev_dic["summary_POS"] = summary_pos
+                review_text = self.rating_model.merge_review_text(
+                    rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
 
-            rating_model = self.rating_model.eval_sentence(review_text)
-            if rating_model:
-                rev_dic['rating_model'] = rating_model
+                if review_text:
+                    rating_model = self.rating_model.eval_sentence(review_text)
+                    if rating_model:
+                        rev_dic['rating_model'] = rating_model
 
-            if not self.connector.index(domain, rev_dic):
-                print("Review of " + product_name + " " + " not created", sys.stderr)
-            else:
-                review_count += 1
+                if self.filter_model.model:
+                    rev_dic['filter_model'] = True
+                else:
+                    rev_dic['filter_model'] = False
+
+                if not self.connector.index(domain, rev_dic):
+                    print("Review of " + product_name + " " + " not created", sys.stderr)
+                else:
+                    review_count += 1
+            except Exception as e:
+                print("[add_to_elastic] Error: " + str(e) + ' ' + str(rev_dic), file=sys.stderr)
 
         return product_new_count, review_new_count_new, review_count
 
@@ -408,65 +422,69 @@ class HeurekaCrawler:
         categories_urls = self.get_urls(category_domain, "top-recenze/")
 
         for category_url in categories_urls:
-            next_ref = " "
-            while next_ref:
-                try:
-                    infile = BeautifulSoup(urlopen(category_url + next_ref), "lxml")
-                except Exception as e:
-                    print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
-                    print(category_url, file=sys.stderr)
-                    break
-                review_list = infile.find_all(class_="review")
-                for rev in review_list:
+            try:
+                next_ref = " "
+                while next_ref:
                     try:
-                        product = rev.find("h4")
-                        # Create product
-                        product_name_raw = product.get_text()
-                        url = product.find("a").get('href')
-                        category = url.split(".")[0].split("//")[1]
-                        product_name = product_name_raw + " (" + category + ")"
-
-                        url += "/recenze/"
-                        product_obj = Product(url)
-                        product_obj.set_name(product_name)
-                        p = BeautifulSoup(urlopen(url), "lxml")
-
-                        product_category = ""
-
-                        for a in p.find(id="breadcrumbs").find_all("a")[:-1]:
-                            product_category += a.get_text() + " | "
-                        product_obj.set_cateogry(product_category[:-2])
-
-                        review = self.parse_review(rev)
-                        product_obj.add_review(review)
-
-                        if self.connector.get_review_by_product_author_timestr(
-                                category_domain, product_name_raw, review.author, review.date):
-                            if fast:
-                                next_ref = None
-                                break
-                            continue
-
-                        if product_name in obj_product_dict:
-                            obj_product_dict[product_name].add_review(review)
-                        else:
-                            obj_product_dict[product_name] = product_obj
-
+                        infile = BeautifulSoup(urlopen(category_url + next_ref), "lxml")
                     except Exception as e:
                         print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
                         print(category_url, file=sys.stderr)
-                        pass
+                        break
+                    review_list = infile.find_all(class_="review")
+                    for rev in review_list:
+                        try:
+                            product = rev.find("h4")
+                            # Create product
+                            product_name_raw = product.get_text()
+                            url = product.find("a").get('href')
+                            category = url.split(".")[0].split("//")[1]
+                            product_name = product_name_raw + " (" + category + ")"
 
-                if next_ref is None:
-                    break
+                            url += "/recenze/"
+                            product_obj = Product(url)
+                            product_obj.set_name(product_name)
+                            p = BeautifulSoup(urlopen(url), "lxml")
 
-                references = infile.find(class_="pag bot").find("a", "next")
+                            product_category = ""
 
-                if references:
-                    next_ref = references.get('href')
-                else:
-                    next_ref = None
-                    break
+                            for a in p.find(id="breadcrumbs").find_all("a")[:-1]:
+                                product_category += a.get_text() + " | "
+                            product_obj.set_cateogry(product_category[:-2])
+
+                            review = self.parse_review(rev)
+                            product_obj.add_review(review)
+
+                            if self.connector.get_review_by_product_author_timestr(
+                                    category_domain, product_name_raw, review.author, review.date):
+                                if fast:
+                                    next_ref = None
+                                    break
+                                continue
+
+                            if product_name in obj_product_dict:
+                                obj_product_dict[product_name].add_review(review)
+                            else:
+                                obj_product_dict[product_name] = product_obj
+
+                        except Exception as e:
+                            print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
+                            print(category_url, file=sys.stderr)
+                            pass
+
+                    if next_ref is None:
+                        break
+
+                    references = infile.find(class_="pag bot").find("a", "next")
+
+                    if references:
+                        next_ref = references.get('href')
+                    else:
+                        next_ref = None
+                        break
+            except Exception as e:
+                print("[actualize_reviews] Error references: " + str(e), file=sys.stderr)
+                print(category_url, file=sys.stderr)
 
     def task_seed_aspect_extraction(self, category: str, path: str):
         """
@@ -552,16 +570,19 @@ class HeurekaCrawler:
 
             self.actualize_reviews(actualized_dict_of_products, category, fast)
             for _, product in actualized_dict_of_products.items():
-                # Statistics
-                products_count += 1
+                try:
+                    # Statistics
+                    products_count += 1
 
-                # Save product elastic and get statistics
-                p_n_c, r_n_c_n, rev_cnt = self.add_to_elastic(product, category)
-                review_count += rev_cnt
-                product_new_count += p_n_c
-                review_new_count_new += r_n_c_n
+                    # Save product elastic and get statistics
+                    p_n_c, r_n_c_n, rev_cnt = self.add_to_elastic(product, category)
+                    review_count += rev_cnt
+                    product_new_count += p_n_c
+                    review_new_count_new += r_n_c_n
+                except Exception as e:
+                    print("[actualize-statistics] " + str(e), file=sys.stderr)
 
-            category = category.replace(',', '')
+            #category = category.replace(',', '')
             self.submit_statistic(category, review_count, products_count,
                                   product_new_count, review_new_count_new)
 
@@ -688,6 +709,11 @@ class HeurekaCrawler:
                             if rating_model:
                                 rev_dic['rating_model'] = rating_model
 
+                            if self.filter_model.model:
+                                rev_dic['filter_model'] = True
+                            else:
+                                rev_dic['filter_model'] = False
+
                             if not self.connector.index(product['domain'], rev_dic):
                                 print("Review of " + product['product_name'] + " " + " not created", sys.stderr)
                             else:
@@ -789,22 +815,25 @@ class HeurekaCrawler:
                         print("[task] Error " + str(e))
 
         except Exception as e:
-            print("[Task] " + e, file=sys.stderr)
+            print("[Task] " + str(e), file=sys.stderr)
 
     def submit_statistic(self, category, review_count, products_count, product_new_count, review_new_count):
-        document = {
-            'category': category,
-            'review_count': review_count,
-            'affected_products': products_count,
-            'new_products': product_new_count,
-            'new_product_reviews': review_new_count,
-            'date': date.today().strftime("%d. %B %Y").lstrip("0")
-        }
-        print(document)
-        res = self.connector.index(index='actualize_statistic', doc=document)
-        if res['result'] != 'created':
-            print('Statistic for {} was not created'.format(category), file=sys.stderr)
-            print(str(document), file=sys.stderr)
+        try:
+            document = {
+                'category': category,
+                'review_count': review_count,
+                'affected_products': products_count,
+                'new_products': product_new_count,
+                'new_product_reviews': review_new_count,
+                'date': date.today().strftime("%d. %B %Y").lstrip("0")
+            }
+            print(document)
+            res = self.connector.index(index='actualize_statistic', doc=document)
+            if res['result'] != 'created':
+                print('Statistic for {} was not created'.format(category), file=sys.stderr)
+                print(str(document), file=sys.stderr)
+        except Exception as e:
+            print("[submit_statistic] Error: Cant open URL: " + str(e), file=sys.stderr)
 
 
 def main():
