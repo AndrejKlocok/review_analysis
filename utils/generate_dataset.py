@@ -88,7 +88,8 @@ class Generator:
                 sentences += review_sentences
 
             except Exception as e:
-                print('Review {}, exception: {}', str(review), str(e))
+                pass
+                #print('Review {}, exception: {}'.format(str(review), str(e)))
 
     def get_sentences(self, shuffle=False):
         data = self.__con.get_subcategories_count(self.__domain)

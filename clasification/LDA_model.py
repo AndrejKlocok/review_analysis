@@ -2,11 +2,14 @@ from gensim import corpora, models
 import pyLDAvis
 import pyLDAvis.gensim
 import pandas as pd
-import matplotlib.pyplot as plt
 import sys
 from review_analysis.utils.morpho_tagger import MorphoTagger
 
+
 class LDA_model:
+    """
+    Class represents LDA (Latent Dirichlet allocation) model with TF-IDF embedding of words.
+    """
     def __init__(self, topic_count: int):
         self.sentences = []
         self.sentences_pos = []
@@ -18,6 +21,12 @@ class LDA_model:
         self.num_topics = topic_count
 
     def load_sentences_from_api(self, clusters: dict, tagger: MorphoTagger) -> list:
+        """
+
+        :param clusters:
+        :param tagger:
+        :return:
+        """
         salient = []
         for cluster_num, cluster_d in clusters.items():
             for sentence_d in cluster_d['sentences']:
@@ -81,7 +90,6 @@ class LDA_model:
         if debug:
             for idx, topic in self.lda_model_tfidf.print_topics(-1):
                 print('Topic: {} Word: {}'.format(idx, topic))
-        # self.lda_model_tfidf.save("model.lda")
 
         topics = [self.lda_model_tfidf[self.tf_idf_corpus[i]] for i in range(len(self.sentences))]
         self.document_topic = pd.concat(

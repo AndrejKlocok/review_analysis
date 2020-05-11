@@ -78,11 +78,6 @@ class LDA_model:
         return res
 
     def lda(self, debug=False):
-        # self.lda_model = models.LdaMulticore(self.bow_corpus, num_topics=num_topics, id2word=self.dictionary, passes=10)
-        # if debug:
-        #    for idx, topic in self.lda_model.print_topics(-1):
-        #        print('Topic: {} \nWords: {}'.format(idx, topic))
-
         self.lda_model_tfidf = models.LdaMulticore(self.tf_idf_corpus, num_topics=self.num_topics, id2word=self.dictionary,
                                                    passes=10, workers=4)
         if debug:

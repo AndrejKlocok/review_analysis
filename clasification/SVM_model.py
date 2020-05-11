@@ -8,19 +8,21 @@ import random, pickle, argparse
 
 from gensim.models.fasttext import load_facebook_model
 from fse.models import uSIF
+from fse import IndexedList
 
 
 class SVM_Classifier:
     def __init__(self):
         self.model = None
         self.usif_model = None
-        path = '/tmp/xkloco00/athena18/model/'
-        #path = '/mnt/data/xkloco00_a18/model/'
+        path = '/mnt/data/xkloco00_pc5/model/'
+
         self.irrelevant_path = path + 'irrelevant.tsv'
         self.svm_path = path + 'SVM/irrelevant_SVM.pkl'
         self.sent2vec_path = path + 'sent2vec/sent2vec.model'
         self.fasttext_path = path + 'fasttext/cc.cs.300.bin'
         self.embedding_path = path + 'embeddings.txt'
+        self.embedding_indexable = None
 
     def load_sentences(self, path):
         data = []
@@ -43,6 +45,11 @@ class SVM_Classifier:
             self.model = pickle.load(f)
 
         self.usif_model = uSIF.load(self.sent2vec_path)
+        lines = []
+        with open(self.embedding_path, 'r') as file:
+            for line in file:
+                lines.append(line[:-1].split())
+        self.embedding_indexable = IndexedList(lines)
 
     def init__usif(self):
         embeddings = []
@@ -74,7 +81,6 @@ class SVM_Classifier:
 
         self.usif_model = uSIF.load(self.sent2vec_path)
         features = self.usif_model.infer(data_embed)
-
         labels = data_y
         X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.20)
         model.fit(X_train, y_train)
@@ -94,12 +100,17 @@ class SVM_Classifier:
         else:
             return 'normal'
 
+    def get_most_similar_sentences(self, sentence):
+        return self.usif_model.sv.similar_by_sentence(sentence.split(), self.usif_model,
+                                               self.embedding_indexable.items)
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="SVM model")
     parser.add_argument('-usif', '--usif', help='Init usif sent2vec model', action='store_true')
     parser.add_argument('-cls', '--cls', help='Init SVM classifier', action='store_true')
+    parser.add_argument('-sim', '--sim', help='Similarity test', action='store_true')
 
     args = vars(parser.parse_args())
     cls = SVM_Classifier()
@@ -108,6 +119,12 @@ def main():
         cls.init__usif()
     elif args['cls']:
         cls.create_model()
+    elif args['sim']:
+        cls.load_models()
+        sentences = ['Výborná cena vysavače']
+        for setence in sentences:
+            sims = cls.get_most_similar_sentences(setence)
+            print(sims)
     else:
         cls.load_models()
         data = cls.load_sentences('../../irrelevant.tsv')

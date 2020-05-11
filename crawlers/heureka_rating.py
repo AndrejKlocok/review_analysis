@@ -1,11 +1,12 @@
 import re, sys
+sys.path.append('../')
 from clasification.bert_model import Bert_model
 
 
 class HeurekaRating:
     def __init__(self, useModel: bool):
-        path = '/home/andrej/Documents/school/Diplomka/model/'
-        # path = '/mnt/data/xkloco00_a18/model/'
+        path = '/model/'
+        # path = '/mnt/data/xkloco00_pc5/model/'
         self.regression_model = None
 
         if useModel:

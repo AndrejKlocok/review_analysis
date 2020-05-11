@@ -3,11 +3,12 @@ from datetime import datetime
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from datetime import date
+sys.path.append('../')
 from utils.elastic_connector import Connector
 from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
-from heureka_filter import HeurekaFilter
-from heureka_rating import HeurekaRating
+from crawlers.heureka_filter import HeurekaFilter
+from crawlers.heureka_rating import HeurekaRating
 
 
 class HeurekaCrawler:
@@ -40,8 +41,7 @@ class HeurekaCrawler:
         self.total_review_new_count = 0
         self.total_empty_reviews = 0
         self.irrelevant_sentences_count = 0
-
-        pass
+        self.sentences_count = 0
 
     def parse_product_page(self, infile, product: Product, category_domain):
         '''
@@ -93,6 +93,7 @@ class HeurekaCrawler:
             if xml:
                 for li in xml.find_all("li"):
                     text = li.get_text()
+                    self.sentences_count += 1
                     if self.filter_model.is_irrelevant(text):
                         self.irrelevant_sentences_count += 1
                         continue
@@ -126,6 +127,7 @@ class HeurekaCrawler:
         # set summary
         if review_text.p:
             text = review_text.p.get_text()
+            self.sentences_count += 1
             if not self.filter_model.is_irrelevant(text):
                 review.set_summary(text)
             else:
@@ -150,6 +152,11 @@ class HeurekaCrawler:
             # for each review
             for rev in reviews:
                 review = self.parse_review(rev)
+
+                # check if review is not empty
+                if not review.pros and not review.cons and not review.summary:
+                    self.total_empty_reviews += 1
+                    continue
 
                 review_elastic = self.connector.get_review_by_product_author_timestr(
                     category_domain, product_name, review.author, review.date)
@@ -184,6 +191,7 @@ class HeurekaCrawler:
             if xml:
                 for pro in xml.find_all('li'):
                     val = pro.get_text().strip()
+                    self.sentences_count += 1
                     if self.filter_model.is_irrelevant(val):
                         self.irrelevant_sentences_count += 1
                         continue
@@ -453,6 +461,12 @@ class HeurekaCrawler:
                             product_obj.set_cateogry(product_category[:-2])
 
                             review = self.parse_review(rev)
+
+                            # check if review is not empty
+                            if not review.pros and not review.cons and not review.summary:
+                                self.total_empty_reviews += 1
+                                continue
+
                             product_obj.add_review(review)
 
                             if self.connector.get_review_by_product_author_timestr(
@@ -637,7 +651,7 @@ class HeurekaCrawler:
             except Exception as e:
                 print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
 
-    def task_repair(self):
+    def task_repair(self, min_rec_count):
         def get_str_pos(l):
             s = []
             for sentence in l:
@@ -655,7 +669,7 @@ class HeurekaCrawler:
             if progress % 10000 == 0:
                 print('{} products of {}'.format(str(progress), str(products_len)))
             revs = self.connector.get_product_rev_cnt(product['product_name'])
-            if revs < 4:
+            if revs < min_rec_count:
                 review_cnt = 0
                 next_ref = " "
                 while next_ref:
@@ -838,7 +852,7 @@ class HeurekaCrawler:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Crawl Heureka reviews as defined in config.py, Expects existance of URLS file for every category")
+        description="Crawl Heureka reviews as defined in config.py, Expects existence of URLS file for every category")
     parser.add_argument("-actualize", "--actualize", action="store_true", help="Actualize reviews")
     parser.add_argument("-aspect", "--aspect", action="store_true", help="Get aspects from category specification")
     parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
@@ -846,7 +860,7 @@ def main():
     parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
     parser.add_argument("-filter", "-filter", help="Use model to filter irrelevant sentences", action="store_true")
     parser.add_argument("-rating", "-rating", help="Use model to predicr rating of sentences", action="store_true")
-    parser.add_argument("-repair", "-repair", help="Repair corrupted product reviews", action="store_true")
+    parser.add_argument("-repair", "-repair", help="Repair corrupted product reviews", type=int)
 
     args = vars(parser.parse_args())
 
@@ -889,7 +903,7 @@ def main():
 
     if args['repair']:
         # repair product reviews
-        crawler.task_repair()
+        crawler.task_repair(args['repair'])
 
     print(time.time() - start)
 
@@ -900,6 +914,7 @@ def main():
 
         print('Empty revs : ' + str(crawler.total_empty_reviews))
         print('Irrelevant sentences : ' + str(crawler.irrelevant_sentences_count))
+        print('Total sentences : ' + str(crawler.sentences_count))
 
 
 if __name__ == '__main__':

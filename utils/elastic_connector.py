@@ -1,5 +1,4 @@
 from elasticsearch import Elasticsearch
-from elasticsearch.helpers import bulk
 from elasticsearch.exceptions import NotFoundError
 
 import json, sys
@@ -9,9 +8,16 @@ from operator import itemgetter
 
 
 class Connector:
-    def __init__(self):
+    def __init__(self, host=None, port=None):
         # connect to localhost
-        self.es = Elasticsearch()
+        if not host:
+            host = 'localhost'
+        if not port:
+            port = 9200
+        self.es = Elasticsearch([{
+            'host': host,
+            'port': port
+        }])
         try:
             res = self.es.search(index='domain', size=30)["hits"]
         except NotFoundError:
@@ -112,12 +118,12 @@ class Connector:
             print("[get_domain] Error: " + str(e), file=sys.stderr)
             return category
 
-    def _get_data(self, category, subcategory, body):
-        index = self.domain[category]
-        if category == 'shop':
-            cnt = self.get_count(category, subcategory, body)
+    def _get_data(self, domain, subcategory, body):
+        index = self.domain[domain]
+        if domain == 'shop':
+            cnt = self.get_count(domain, subcategory, body)
         else:
-            cnt = self.get_count(category, subcategory)
+            cnt = self.get_count(domain, subcategory)
 
         if cnt > self.max:
             return self.__scroll(index, body)
@@ -188,7 +194,7 @@ class Connector:
 
     def match_all(self, category):
         try:
-            body = {"size": 10000,"query": {"match_all": {}}}
+            body = {"size": 10000, "query": {"match_all": {}}}
             return self._get_data(category, None, body)
 
         except Exception as e:
@@ -270,7 +276,7 @@ class Connector:
                 return None, 404
 
             if breadcrumbs:
-                #values_shop, _ = self.get_shop_breadcrums()
+                # values_shop, _ = self.get_shop_breadcrums()
                 values = [' | '.join(['Heureka.cz', val['key']['505'],
                                       val['key']['501']])
                           for val in res["aggregations"]["groupby"]["buckets"]]
@@ -295,7 +301,7 @@ class Connector:
 
     def get_shop_breadcrums(self):
         try:
-            body = {"size": 10000,"query": {"match_all": {}}}
+            body = {"size": 10000, "query": {"match_all": {}}}
 
             res = self._get_data('shop', None, body)
 
@@ -311,7 +317,7 @@ class Connector:
 
     def get_shops(self):
         try:
-            body = {"size": 10000,"query": {"match_all": {}}}
+            body = {"size": 10000, "query": {"match_all": {}}}
 
             res = self._get_data('shop', None, body)
             all_revs = 0
@@ -526,24 +532,6 @@ class Connector:
                         }
                     }
                 },
-                "_source": {
-                    "includes": [
-                        "author",
-                        "category",
-                        "cons",
-                        "cons_POS",
-                        "date",
-                        "domain",
-                        "pro_POS",
-                        "product_name",
-                        "pros",
-                        "rating",
-                        "recommends",
-                        "summary",
-                        "summary_POS"
-                    ],
-                    "excludes": []
-                },
                 "sort": [
                     {
                         "_doc": {
@@ -561,7 +549,7 @@ class Connector:
 
     def get_shop_reviews(self):
         try:
-            body = {"size": 10000,"query": {"match_all": {}}}
+            body = {"size": 10000, "query": {"match_all": {}}}
 
             res = self._get_data('shop_review', None, body)
 
@@ -571,7 +559,7 @@ class Connector:
                 return res, 404
 
         except Exception as e:
-            print("[get_reviews_from_product] Error: " + str(e), file=sys.stderr)
+            print("[get_shop_reviews] Error: " + str(e), file=sys.stderr)
             return None, 500
 
     def get_reviews_from_product(self, product):
@@ -700,9 +688,9 @@ class Connector:
                         }
                     }
                 },
-                "sort":[
+                "sort": [
                     {
-                        "date":{
+                        "date": {
                             "order": "desc"
                         }
                     }
@@ -857,9 +845,6 @@ class Connector:
             body = {
                 "size": 1,
                 "query": {"term": {"product_name.keyword": {"value": product_name, "boost": 1.0}}},
-                "_source": {
-                    "includes": ["category", "category_list", "domain", "product_name", "url"],
-                    "excludes": []},
                 "sort": [{"_doc": {"order": "asc"}}]}
             res = self.es.search(index=index, body=body)
             # just one
@@ -974,7 +959,7 @@ class Connector:
             print("[get_experiments] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def get_experiments_by_category(self, category_name):
+    def get_experiments_by_category(self, category_name, product_name: str = ''):
         try:
             body = {
                 "query": {
@@ -1000,10 +985,10 @@ class Connector:
                 for d in res["hits"]["hits"]:
                     source = d["_source"]
                     source["_id"] = d["_id"]
-                    source['clusters_pos'], _ = self.get_experiment_clusters(source["_id"], 'pos')
-                    source['clusters_con'], _ = self.get_experiment_clusters(source["_id"], 'con')
-                    source['clusters_pos_count'] = len(source['clusters_pos'])
-                    source['clusters_con_count'] = len(source['clusters_con'])
+                    source['clusters_pos'], _ = self.get_experiment_clusters(source["_id"], 'pos', product_name)
+                    source['clusters_con'], _ = self.get_experiment_clusters(source["_id"], 'con', product_name)
+                    source['clusters_pos_count'] = len(source['clusters_pos']) if source['clusters_pos'] else 0
+                    source['clusters_con_count'] = len(source['clusters_con']) if source['clusters_con'] else 0
                     source['pos_sentences'] = 0
                     for cluster in source['clusters_pos']:
                         source['pos_sentences'] += cluster['cluster_sentences_count']
@@ -1020,7 +1005,7 @@ class Connector:
             print("[get_experiments_by_category] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def get_experiment_clusters(self, experiment_id, cluster_type):
+    def get_experiment_clusters(self, experiment_id, cluster_type, product_name: str = ''):
         try:
             body = {
                 "size": 10000,
@@ -1056,9 +1041,9 @@ class Connector:
                 for d in res["hits"]["hits"]:
                     source = d["_source"]
                     source["_id"] = d["_id"]
-                    source['sentences'], _ = self.get_experiment_clusters_sentences(source["_id"])
+                    source['sentences'], _ = self.get_experiment_clusters_sentences(source["_id"], product_name)
                     source['topics'], _ = self.get_experiment_clusters_topics(source["_id"])
-                    source['cluster_sentences_count'] = len(source['sentences'])
+                    source['cluster_sentences_count'] = len(source['sentences']) if source['sentences'] else 0
                     l.append(source)
                 return l, 200
             else:
@@ -1097,7 +1082,7 @@ class Connector:
             print("[get_experiment_clusters_sentences] Error: " + str(e), file=sys.stderr)
             return None, 500
 
-    def get_experiment_clusters_sentences(self, cluster_id):
+    def get_experiment_clusters_sentences(self, cluster_id, product_name: str = ''):
         try:
             body = {
                 "size": 10000,
@@ -1124,6 +1109,11 @@ class Connector:
                 for d in res["hits"]["hits"]:
                     source = d["_source"]
                     source["_id"] = d["_id"]
+
+                    if product_name:
+                        # if the object of experiment is product, we want only product relevant sentences
+                        if source['product_name'] != product_name:
+                            continue
                     l.append(source)
                 return l, 200
             else:
@@ -1213,7 +1203,7 @@ class Connector:
                     }
                 }
             }
-            self.es.delete_by_query(index="experiment", body=body)
+            res = self.es.delete_by_query(index="experiment", body=body)
 
             body = {
                 "query": {
@@ -1225,7 +1215,10 @@ class Connector:
                     }
                 }
             }
-            res = self.es.delete_by_query(index="experiment_sentence", body=body)
+            self.es.delete_by_query(index="experiment_cluster", body=body)
+            self.es.delete_by_query(index="experiment_topic", body=body)
+
+            self.es.delete_by_query(index="experiment_sentence", body=body)
             return res, 200
 
         except Exception as e:
@@ -1344,7 +1337,7 @@ class Connector:
             return None, 500
 
     def update_experiment_cluster_sentences(self, topic_id_from,
-                                            cluster_id_to,  topic_numb_to, topic_id_to):
+                                            cluster_id_to, topic_numb_to, topic_id_to):
         try:
             body = {
                 "script": {

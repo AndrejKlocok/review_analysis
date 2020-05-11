@@ -1,9 +1,11 @@
 import pandas as pd
 from sklearn.metrics import mean_squared_error
-import random
+import random, sys
 import argparse
+sys.path.append('../')
 from generate_dataset import statistics, Generator
 from utils.elastic_connector import Connector
+
 
 def load_datasets(dataset_path):
     sentences_cons = []

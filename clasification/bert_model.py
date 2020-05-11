@@ -7,6 +7,9 @@ import torch
 
 
 class Bert_model:
+    """
+    Class represents wrapper for bert model, that is used in review analysis.
+    """
     def __init__(self, path, labels):
         model_class = BertForSequenceClassification
         self.model = model_class.from_pretrained(path)
@@ -15,9 +18,22 @@ class Bert_model:
         self.labels = labels
 
     def do_eval(self):
+        """
+        Set model to evaluation status.
+        :return:
+        """
         self.model.eval()
 
     def eval_example(self, sentence_a, sentence_b, useLabels= True):
+        """
+        Evaluate sentence a and b with fine tuned bert model. In bipolar classification task sentence_a is not used
+        and can be replaced with any string, f.e. 'a'. In next sentence prediction tasks sentence_a is used as first
+        sentence, based on which model predicts if sentence_b could be next sentence
+        :param sentence_a: sentence
+        :param sentence_b: sentence
+        :param useLabels: in regression task, we want models estimate.
+        :return:
+        """
         examples = [InputExample(guid=0, text_a=sentence_a, text_b=sentence_b, label=None)]
         inputs, _, _ = convert_to_features(examples, self.tokenizer)
         ouputs = self.model(**inputs)
@@ -30,29 +46,14 @@ class Bert_model:
             return preds.view().item()
 
     def get_embedding(self, sentence, strategy=None):
+        """
+        Get sentence embedding from last hidden state.
+        :param sentence:
+        :param strategy:
+        :return:
+        """
         input_ids = torch.tensor(self.tokenizer.encode(sentence)).unsqueeze(0)
         outputs = self.model(input_ids)
         last_hidden_states = outputs[0]
         return  last_hidden_states
 
-
-def main():
-    labels = []
-    path = '/home/andrej/Documents/school/Diplomka/model/bert_regression'
-    bert_model = Bert_model(path, labels)
-    bert_model.do_eval()
-
-    sentences = ['Tento výrobek nedoporučuji. loupe se z něj barva a celkově je to nepoužitelný výrobek.',
-                 'Výborní cena a kvalita produktu, vážne jsem s ním spokojena',
-                 'Nesnáším tenhle produkt', 'Je moc hluční, malý', 'Neplíbí se mi',
-                 'Výrobek máme krátce.', 'Vse ok.']
-
-    for sentence in sentences:
-        print(" Prediction : {} \n\n".format(bert_model.eval_example('a', sentence, useLabels=False)))
-
-    #emb = bert_model.get_embedding(sentence)
-    #print(emb)
-
-
-if __name__ == '__main__':
-    main()

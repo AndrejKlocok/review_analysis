@@ -185,7 +185,7 @@ def initExperiment(con: Connector):
 
 
 def init_users(con):
-    from werkzeug.security import generate_password_hash, check_password_hash
+    from werkzeug.security import generate_password_hash
 
     user = {
         'name': 'basic_user',
@@ -236,6 +236,48 @@ def init_actualize(con: Connector):
         con.es.index(index='actualize_statistic', doc_type='doc', body=d, request_timeout=30)
     con.es.indices.refresh(index='actualize_statistic')
 
+
+def attention():
+    def call_html():
+        import IPython
+        from IPython.core.display import display
+        display(IPython.core.display.HTML('''
+            <script src="/static/components/requirejs/require.js"></script>
+            <script>
+              requirejs.config({
+                paths: {
+                  base: '/static/base',
+                  "d3": "https://cdnjs.cloudflare.com/ajax/libs/d3/5.7.0/d3.min",
+                  jquery: '//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min',
+                },
+              });
+            </script>
+            '''))
+    def show_head_view(model, tokenizer, sentence_a, sentence_b=None):
+        inputs = tokenizer.encode_plus(sentence_a, sentence_b, return_tensors='pt', add_special_tokens=True)
+        input_ids = inputs['input_ids']
+        if sentence_b:
+            token_type_ids = inputs['token_type_ids']
+            attention = model(input_ids, token_type_ids=token_type_ids)[-1]
+            sentence_b_start = token_type_ids[0].tolist().index(1)
+        else:
+            attention = model(input_ids)[-1]
+            sentence_b_start = None
+        input_id_list = input_ids[0].tolist()  # Batch index 0
+        tokens = tokenizer.convert_ids_to_tokens(input_id_list)
+        head_view(attention, tokens, sentence_b_start)
+
+    from tmp.bertviz.bertviz import head_view
+    from transformers import BertForSequenceClassification, BertTokenizer
+
+    path = '/home/andrej/Documents/school/Diplomka/model/bert_bipolar'
+
+    model_class = BertForSequenceClassification
+    model = model_class.from_pretrained(path, output_attentions=True)
+    tokenizer = BertTokenizer.from_pretrained(path)
+
+    call_html()
+    show_head_view(model, tokenizer, 'Kyblík se rozbíje pokud spadné na zem.')
 
 def main():
     # validate_clusters('../experiments/clusters/fasttext_300_dim_cz_pretrained/kmeans_cos_dist15.tsv',
@@ -330,14 +372,25 @@ def main():
 
     #res, retcode = con.append_experiment_cluster_topic(config['cluster_id'], config['topics'])
 
-    con.get_product_by_name('Nokian WetProof 205/55 R16 91V')
+    #con.get_product_by_name('Nokian WetProof 205/55 R16 91V')
+    #product = 'Rowenta RO6477EA'
+    #res = con.get_product_by_name(product)
+    #print(res)
+    #res = con.get_reviews_from_product(product)
+    #print(len(res[0]))
+    # if content['experiment_id']:
+    content = {'category': 'VIF Super Benzin Aditiv 500 ml'}
 
-    product = 'Nokian WetProof 205/55 R16 91V'
-    res = con.get_product_by_name(product)
-    print(res)
-    res = con.get_reviews_from_product(product)
-    print(len(res[0]))
+    data, ret_code = con.get_experiments_by_category(content['category'])
 
+    # 400 error
+    if not data or ret_code != 200:
+        # check for category experiment in case of product
+        product = con.get_product_by_name(content['category'])
+        if product:
+            data, ret_code = con.get_experiments_by_category(product['category'], content['category'])
+        else:
+            raise ValueError('This category does not have any experiments')
 
 
 if __name__ == '__main__':

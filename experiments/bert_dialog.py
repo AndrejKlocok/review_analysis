@@ -1,12 +1,4 @@
-import torch
-import argparse
-
-from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
-                              TensorDataset)
-from clasification.procesors_cls import  InputExample, convert_to_features
-from pytorch_transformers import BertForSequenceClassification,BertTokenizer,BertConfig
-from bertviz.bertviz.neuron_view import show
-import numpy as np
+from tmp.bertviz.bertviz.neuron_view import show
 from clasification.bert_model import Bert_model
 
 
@@ -30,7 +22,7 @@ def call_html():
 
 class BertVizModel():
     def __init__(self, model_path):
-        from bertviz.bertviz.transformers_neuron_view import BertModel, BertTokenizer
+        from tmp.bertviz.bertviz import BertModel, BertTokenizer
 
         self.model_type = 'bert'
         bert_version = 'bert-base-cased'

@@ -1,6 +1,7 @@
 import argparse, time, sys, json, os
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
+sys.path.append('../')
 from utils.elastic_connector import Connector
 from collections import OrderedDict
 

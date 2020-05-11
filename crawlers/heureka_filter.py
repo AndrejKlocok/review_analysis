@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 from clasification.SVM_model import SVM_Classifier
 
 
@@ -30,7 +32,6 @@ class HeurekaFilter:
         # TODO split sentences !
         # one word sentences are irrelevant
         if len(sentence.split()) <= 1:
-            self.log_file.write(sentence + '\n')
             return True
         # too long review sentence is kind of valid
         if len(sentence.split()) > 10:
@@ -41,7 +42,7 @@ class HeurekaFilter:
             if self.model.eval_example(sentence) == 'irrelevant':
                 if self.log_file:
                     self.index += 1
-                    self.log_file.write('{0}\t1\ta\t{1}\n'.format(str(self.index), sentence))
+                    self.log_file.write('{0}\t0\ta\t{1}\n'.format(str(self.index), sentence))
                 return True
 
         return False
@@ -54,7 +55,7 @@ class HeurekaFilter:
 def main():
     heureka_filter = HeurekaFilter()
 
-    with open('tmp/dataset_positive.txt', "r") as file:
+    with open('../tmp/dataset_positive.txt', "r") as file:
         for line in file:
             line = line[:-1]
             label = heureka_filter.is_irrelevant(line)

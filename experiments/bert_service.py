@@ -1,6 +1,6 @@
 import argparse, random, nltk, time, operator, os
 from bert_serving.client import BertClient
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 from termcolor import colored
@@ -179,18 +179,6 @@ def test_embedding(bc, topk, q, doc_vecs):
         print("Nearest k:" + str(topk) + str(results))
 
 
-def embedding_projector(bc, path):
-    try:
-        sentences = load_sentences(path, "dataset_emb.txt", tuple=False)
-        s = sentences[0]
-        tensors, tokens = bc.encode([s], show_tokens=True)
-
-        with open('vectors.tsv', "w") as file:
-            for tensor in tensors:
-                pass
-
-    except Exception as e:
-        print("[embedding_projector] Exception: " + str(e))
 
 def main():
     parser = argparse.ArgumentParser(
@@ -223,8 +211,6 @@ def main():
         for i in range(7,20):
             print("test_embedding with topK: " + str(i))
             test_embedding(bc, i, q, doc_vecs)
-    elif args['visualize']:
-        embedding_projector(bc, args['path'])
 
 
     print(time.time() - start)

@@ -8,6 +8,6 @@ __pycache__*
 *.7z
 results/*
 tmp/*
-bertviz
+tmp/bertviz
 .ipynb_checkpoints/*
 
