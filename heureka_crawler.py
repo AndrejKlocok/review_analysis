@@ -3,15 +3,18 @@ from datetime import datetime
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from datetime import date
-sys.path.append('../')
 from utils.elastic_connector import Connector
 from utils.discussion import Review, Product, Aspect, AspectCategory
 from utils.morpho_tagger import MorphoTagger
-from crawlers.heureka_filter import HeurekaFilter
-from crawlers.heureka_rating import HeurekaRating
+from heureka_models.heureka_filter import HeurekaFilter
+from heureka_models.heureka_rating import HeurekaRating
 
 
 class HeurekaCrawler:
+    """
+    Class implements crawler, which crawls heureka with given list of starter URLS, handles indexing of products, shops
+    and reviews
+    """
     def __init__(self, connector: Connector, tagger: MorphoTagger, filter_model: HeurekaFilter,
                  rating_model: HeurekaRating):
         self.categories = [
@@ -44,14 +47,14 @@ class HeurekaCrawler:
         self.sentences_count = 0
 
     def parse_product_page(self, infile, product: Product, category_domain):
-        '''
+        """
         Parse review page of product, build up product object by appending new reviews.
 
         :param infile:
         :param product:
         :param category_domain:
         :return:
-        '''
+        """
 
         def _task_product_page(product_page_xml):
             review_list = product_page_xml.find(class_="product-review-list")
@@ -171,25 +174,37 @@ class HeurekaCrawler:
 
         return False
 
-    def parse_shop_revs(self, review_list, shop_name):
+    def parse_shop_revs(self, review_list, shop_name: str):
         """
-        Parse shop reviews from :param review_list
+        Parse shop reviews from review_list
         :param review_list: xml of page
-        :param shop_name:
+        :param shop_name: string
         :return:
         """
 
-        def _get_str_pos(l):
+        def _get_str_pos(l: list):
+            """
+            Inner function for dumping WordPos object to dictionary as list
+            :param l: list of WordPos objects
+            :return: list of strings
+            """
             s = []
             for sentence in l:
                 s.append([str(wb) for wb in sentence])
             return s
 
         def _cons_pros(xml):
+            """
+            Parse xml for positive/negative section of ul elements
+            :param xml: beautiful soup instance
+            :return: list of sentences, list of processed sentences: Tuple[list, List[List[List[str]]]]
+            """
             l_ = []
             l_pos = []
             if xml:
+                # loop over all list elements
                 for pro in xml.find_all('li'):
+                    # increase count of sentences and evaluate sentence with irrelevant model
                     val = pro.get_text().strip()
                     self.sentences_count += 1
                     if self.filter_model.is_irrelevant(val):
@@ -200,14 +215,21 @@ class HeurekaCrawler:
             return l_, l_pos
 
         def _summary(xml):
+            """
+            Parse bs4 instance of summary and evaluate it with irrelevant model
+            :param xml:
+            :return:list of sentences, list of processed sentences
+            """
             summary_text = xml.get_text().strip() if xml else ''
             if summary_text and self.filter_model.is_irrelevant(summary_text):
                 return [], []
             return summary_text, _get_str_pos(self.tagger.pos_tagging(summary_text))
 
         r_d = {}
+        # parse each review in review list
         for review in review_list:
             try:
+                # parse xmls
                 sum_xml = review.find(class_='c-post__summary')
                 author_xml = review.find(class_='c-post__author')
                 rating_xml = review.find(class_='c-rating-widget__value')
@@ -217,6 +239,7 @@ class HeurekaCrawler:
                 delivery_time_xml = review.find(class_='c-post__delivery-time')
                 date_obj = datetime.strptime(review.find(class_='c-post__publish-time').get('datetime'),
                                              '%Y-%m-%d %H:%M:%S')
+                # cerate review dict (json)
                 r_d = {
                     'author': author_xml.get_text() if author_xml else 'author',
                     'date': date_obj.isoformat(),
@@ -234,6 +257,7 @@ class HeurekaCrawler:
                 review_text = self.rating_model.merge_review_text(
                     r_d['pros'], r_d['cons'], r_d['summary'])
 
+                # perform evaluation with models
                 rating_model = self.rating_model.eval_sentence(review_text)
                 if rating_model:
                     r_d['rating_model'] = rating_model
@@ -247,7 +271,7 @@ class HeurekaCrawler:
                 if not r_d['pros'] and not r_d['cons'] and not r_d['summary']:
                     self.total_empty_reviews += 1
                     continue
-
+                # if the review already exists return true else index it
                 if not self.connector.get_review_by_shop_author_timestr(
                         r_d['shop_name'], r_d['author'], r_d['date']):
                     self.total_review_count += 1
@@ -258,7 +282,6 @@ class HeurekaCrawler:
 
             except Exception as e:
                 print("[parse_shop_revs] Error: " + shop_name + " " + str(r_d) + " " + str(e), file=sys.stderr)
-                pass
 
         return False
 
@@ -269,7 +292,13 @@ class HeurekaCrawler:
         :return:
         """
 
-        def _task_shop_parse(shop_url, shop_name):
+        def _task_shop_parse(shop_url: str, shop_name: str):
+            """
+            Function performs parsing shop reviews on heureka.
+            :param shop_url:
+            :param shop_name:
+            :return:
+            """
             shop_xml = BeautifulSoup(urlopen(shop_url), "lxml")
             review_list = shop_xml.find_all(class_='c-post')
             # found existing review signal to end crawl
@@ -280,10 +309,11 @@ class HeurekaCrawler:
             references = shop_xml.find(class_='c-pagination').find(class_='c-pagination__button')
 
             return references.get('href') if references else None
-
+        # loop over all shop instances
         for shop in shop_list:
             try:
                 reviews = self.total_review_count
+                # parse shop meta data files
                 shop_url = 'https://obchody.heureka.cz' + shop.find(class_='c-shops-table__cell--rating').find('a').get(
                     'href')
                 shop_name = shop.find(class_='c-shops-table__cell--name').find('a').get_text().strip()
@@ -292,7 +322,7 @@ class HeurekaCrawler:
                 shop_info_xml = shop.find(class_='c-shops-table__cell--info').find('p')
                 shop_info = shop_info_xml.get_text() if shop_info_xml else ''
                 shop_ref = None
-
+                # index shop if it is not already in elastic
                 if not self.connector.get_shop_by_name(shop_name):
                     shop_d = {
                         'name': shop_name,
@@ -307,6 +337,7 @@ class HeurekaCrawler:
                 else:
                     print('Shop in db already ' + str(shop_name), file=sys.stderr)
 
+                # parse shop reviews
                 shop_ref = _task_shop_parse(shop_url, shop_name)
 
                 # loop over footer with references to next pages
@@ -320,7 +351,7 @@ class HeurekaCrawler:
 
     def get_urls(self, category, string_to_append=""):
         """
-        Get all product subcategories from elastic under :param category
+        Get all product subcategories from elastic under category
         :param category:
         :param string_to_append:
         :return:
@@ -346,7 +377,12 @@ class HeurekaCrawler:
         :return:
         """
 
-        def get_str_pos(l):
+        def get_str_pos(l: list):
+            """
+            Inner function for dumping WordPos object to dictionary as list
+            :param l: list of WordPos objects
+            :return: list of strings
+            """
             s = []
             for sentence in l:
                 s.append([str(wb) for wb in sentence])
@@ -360,24 +396,27 @@ class HeurekaCrawler:
         product_name = l[0].strip()
         domain = self.connector.get_domain(category)
 
+        # index product if it is no already in elastic
         if not self.connector.get_product_by_name(product_name):
             product_elastic = {
                 "product_name": product_name,
                 "category": sub_cat_name,
                 "domain": domain,
-                "category_list": product.get_cateogry(),
+                "category_list": product.get_category(),
                 "url": product.get_url()
             }
 
             if not self.connector.index("product", product_elastic):
                 print("Product of " + product_name + " " + " not created", sys.stderr)
             else:
+                # increase statistics
                 product_new_count += 1
                 review_new_count_new += len(product.get_reviews())
 
-        # Save review elastic
+        # loop over product reviews
         for rev in product.get_reviews():
             try:
+                # create review representation as dictionary
                 rev_dic = {'author': rev.author, 'rating': rev.rating, 'recommends': rev.recommends,
                            'pros': rev.pros, 'cons': rev.cons, 'summary': rev.summary, 'date_str': rev.date,
                            'category': sub_cat_name, 'product_name': product_name, 'domain': domain}
@@ -399,12 +438,13 @@ class HeurekaCrawler:
                 rev_dic["summary_POS"] = summary_pos
                 review_text = self.rating_model.merge_review_text(
                     rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
-
+                # evaluate text with given models
                 if review_text:
+                    # rating model
                     rating_model = self.rating_model.eval_sentence(review_text)
                     if rating_model:
                         rev_dic['rating_model'] = rating_model
-
+                # filter model
                 if self.filter_model.model:
                     rev_dic['filter_model'] = True
                 else:
@@ -428,7 +468,7 @@ class HeurekaCrawler:
         :return:
         """
         categories_urls = self.get_urls(category_domain, "top-recenze/")
-
+        # loop over product urls
         for category_url in categories_urls:
             try:
                 next_ref = " "
@@ -458,8 +498,9 @@ class HeurekaCrawler:
 
                             for a in p.find(id="breadcrumbs").find_all("a")[:-1]:
                                 product_category += a.get_text() + " | "
-                            product_obj.set_cateogry(product_category[:-2])
+                            product_obj.set_category(product_category[:-2])
 
+                            # parse review
                             review = self.parse_review(rev)
 
                             # check if review is not empty
@@ -468,14 +509,15 @@ class HeurekaCrawler:
                                 continue
 
                             product_obj.add_review(review)
-
+                            # if there is a review with the same date, author and product
                             if self.connector.get_review_by_product_author_timestr(
                                     category_domain, product_name_raw, review.author, review.date):
+                                # fast method does not count all reviews, so after first match it ends
                                 if fast:
                                     next_ref = None
                                     break
                                 continue
-
+                            # append product to dictionary of actualized products
                             if product_name in obj_product_dict:
                                 obj_product_dict[product_name].add_review(review)
                             else:
@@ -485,7 +527,7 @@ class HeurekaCrawler:
                             print("[actualize_reviews] Error: " + str(e), file=sys.stderr)
                             print(category_url, file=sys.stderr)
                             pass
-
+                    # go to the next page
                     if next_ref is None:
                         break
 
@@ -510,6 +552,8 @@ class HeurekaCrawler:
         try:
 
             categories_urls = self.get_urls(category)
+            # get hereka parameters of product categories, that might resemblance aspects
+            # and save them to file
             with open(path + "/" + category + "_aspects.txt", "w") as aspect_file:
                 for url in categories_urls:
                     try:
@@ -575,14 +619,16 @@ class HeurekaCrawler:
         :return:
         """
         try:
+            # dict of actualized products
             actualized_dict_of_products = {}
-
+            # statistics
             review_count = 0
             products_count = 0
             product_new_count = 0
             review_new_count_new = 0
-
+            # actualize products reviews for concrete domain category
             self.actualize_reviews(actualized_dict_of_products, category, fast)
+            # loop over actualized products, get statistics and save reviews with products to elastic
             for _, product in actualized_dict_of_products.items():
                 try:
                     # Statistics
@@ -596,7 +642,6 @@ class HeurekaCrawler:
                 except Exception as e:
                     print("[actualize-statistics] " + str(e), file=sys.stderr)
 
-            #category = category.replace(',', '')
             self.submit_statistic(category, review_count, products_count,
                                   product_new_count, review_new_count_new)
 
@@ -608,12 +653,12 @@ class HeurekaCrawler:
         except Exception as e:
             print("[actualize] " + str(e), file=sys.stderr)
 
-    def task_shop(self, args):
+    def task_shop(self):
         """
-        Task crawl shop reviews
-        :param args:
+        Task crawl shop reviews.
         :return:
         """
+        # dictionary of domain to shop-url
         d = {
             'Elektronika': 'https://obchody.heureka.cz/elektronika/',
             'Bile zbozi': 'https://obchody.heureka.cz/bile-zbozi/',
@@ -630,7 +675,12 @@ class HeurekaCrawler:
             'Sexualni a eroticke pomucky': 'https://obchody.heureka.cz/sex-erotika/'
         }
 
-        def _task_shop_page(url):
+        def _task_shop_page(url: str):
+            """
+            Function parse domain category for shop instances with its reviews
+            :param url:
+            :return:
+            """
             shop_page = BeautifulSoup(urlopen(url), "lxml")
 
             shop_list = shop_page.find_all(class_="c-shops-table__row")
@@ -641,6 +691,7 @@ class HeurekaCrawler:
 
             return references.get('href') if references else None
 
+        # loop over urls
         for category, url in d.items():
             try:
                 page_ref = _task_shop_page(url)
@@ -651,8 +702,18 @@ class HeurekaCrawler:
             except Exception as e:
                 print("[task_shop] Exception for " + url + " " + str(e), file=sys.stderr)
 
-    def task_repair(self, min_rec_count):
-        def get_str_pos(l):
+    def task_repair(self, min_rec_count: int):
+        """
+        Crawl products, that have less then min_rec_count count of reviews
+        :param min_rec_count:
+        :return:
+        """
+        def get_str_pos(l: list):
+            """
+            Inner function for dumping WordPos object to dictionary as list
+            :param l: list of WordPos objects
+            :return: list of strings
+            """
             s = []
             for sentence in l:
                 s.append([str(wb) for wb in sentence])
@@ -660,15 +721,21 @@ class HeurekaCrawler:
 
         repaired_products = 0
         repaired_reviews = 0
+        # get all products from elastic
         products = self.connector.match_all('product')
 
         progress = 0
         products_len = len(products)
+        # loop over products
         for product in products:
+            # progress
             progress += 1
             if progress % 10000 == 0:
                 print('{} products of {}'.format(str(progress), str(products_len)))
+
+            # get count of reviews for given product
             revs = self.connector.get_product_rev_cnt(product['product_name'])
+            # if the count is less then minimum crawl all reviews of that product
             if revs < min_rec_count:
                 review_cnt = 0
                 next_ref = " "
@@ -684,15 +751,15 @@ class HeurekaCrawler:
                     # no reviews
                     if not review_list:
                         break
-
+                    # loop over all product reviews
                     for rev in review_list:
                         try:
                             review = self.parse_review(rev)
-
+                            # if the review already exists continue
                             if self.connector.get_review_by_product_author_timestr(
                                     product['domain'], product['product_name'], review.author, review.date):
                                 continue
-
+                            # review dictionary
                             rev_dic = {'author': review.author, 'rating': review.rating,
                                        'recommends': review.recommends, 'pros': review.pros, 'cons': review.cons,
                                        'summary': review.summary, 'date_str': review.date,
@@ -715,19 +782,19 @@ class HeurekaCrawler:
                             rev_dic["pro_POS"] = pro_pos
                             rev_dic["cons_POS"] = cons_pos
                             rev_dic["summary_POS"] = summary_pos
-
+                            # evaluate review text with available models
                             review_text = self.rating_model.merge_review_text(
                                 rev_dic['pros'], rev_dic['cons'], rev_dic['summary'])
-
+                            # rating model
                             rating_model = self.rating_model.eval_sentence(review_text)
                             if rating_model:
                                 rev_dic['rating_model'] = rating_model
-
+                            # filter model
                             if self.filter_model.model:
                                 rev_dic['filter_model'] = True
                             else:
                                 rev_dic['filter_model'] = False
-
+                            # index review to elastic
                             if not self.connector.index(product['domain'], rev_dic):
                                 print("Review of " + product['product_name'] + " " + " not created", sys.stderr)
                             else:
@@ -738,6 +805,7 @@ class HeurekaCrawler:
                             print("[task_repair] Error: " + str(e), file=sys.stderr)
                             print(product['product_name'], file=sys.stderr)
 
+                    # find next page reference or break
                     if next_ref is None:
                         break
                     try:
@@ -753,18 +821,17 @@ class HeurekaCrawler:
                         print(product['product_name'], file=sys.stderr)
                         next_ref = None
                         pass
-
+                # statistics
                 if review_cnt > 0:
                     repaired_products += 1
-                if repaired_products > 0:
-                    break
 
         print('Products repaired: {}'.format(str(repaired_products)))
         print('Reviews pushed: {}'.format(str(repaired_reviews)))
 
-    def task(self, category: str):
+    def task(self, category: str, path: str):
         """
         Task for product reviews crawling
+        :param path: path to url file
         :param category:
         :return:
         """
@@ -777,7 +844,7 @@ class HeurekaCrawler:
         product_new_count = 0
         review_new_count_new = 0
         try:
-            with open("allCategories" + "/" + category + ".txt", 'r') as infile:
+            with open(path + category + ".txt", 'r') as infile:
                 for line in infile:
                     try:
                         url = line.strip()
@@ -804,7 +871,7 @@ class HeurekaCrawler:
                         # category list -> category_domain | sub_cat1 | subcat2...
                         for a in infile.find(id="breadcrumbs").find_all("a")[:-1]:
                             product_category += a.get_text() + " | "
-                        product.set_cateogry(product_category[:-2])
+                        product.set_category(product_category[:-2])
 
                         # get reviews
                         self.parse_product_page(infile, product, category)
@@ -831,7 +898,16 @@ class HeurekaCrawler:
         except Exception as e:
             print("[Task] " + str(e), file=sys.stderr)
 
-    def submit_statistic(self, category, review_count, products_count, product_new_count, review_new_count):
+    def submit_statistic(self, category: str, review_count: int, products_count: int, product_new_count: int, review_new_count: int):
+        """
+        Index statistics about actualization to the elastic search.
+        :param category:
+        :param review_count:
+        :param products_count:
+        :param product_new_count:
+        :param review_new_count:
+        :return:
+        """
         try:
             document = {
                 'category': category,
@@ -856,17 +932,17 @@ def main():
     parser.add_argument("-actualize", "--actualize", action="store_true", help="Actualize reviews")
     parser.add_argument("-aspect", "--aspect", action="store_true", help="Get aspects from category specification")
     parser.add_argument("-crawl", "--crawl", action="store_true", help="Crawl heureka reviews with url dataset")
-    parser.add_argument("-path", "-path", help="Path to the dataset folder")
+    parser.add_argument("-path", "-path", help="Path to the dataset folder (ends with /)")
     parser.add_argument("-shop", "-shop", help="Crawl shop reviews", action="store_true")
     parser.add_argument("-filter", "-filter", help="Use model to filter irrelevant sentences", action="store_true")
-    parser.add_argument("-rating", "-rating", help="Use model to predicr rating of sentences", action="store_true")
+    parser.add_argument("-rating", "-rating", help="Use model to predict rating of sentences", action="store_true")
     parser.add_argument("-repair", "-repair", help="Repair corrupted product reviews", type=int)
 
     args = vars(parser.parse_args())
 
     # create tagger
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger("../model/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
 
     # Elastic
     con = Connector()
@@ -881,8 +957,6 @@ def main():
     crawler = HeurekaCrawler(con, tagger, heureka_filter, heureka_rating)
 
     for category in crawler.categories:
-        start = time.time()
-
         if args['actualize']:
             # actualize reviews
             # always fast for now
@@ -893,19 +967,17 @@ def main():
             crawler.task_seed_aspect_extraction(category, args['path'])
         elif args['crawl']:
             # product reviews extraction
-            crawler.task(category)
+            crawler.task(category, args['path'])
         else:
             break
 
     if args['shop']:
         # crawl shop reviews
-        crawler.task_shop(args)
+        crawler.task_shop()
 
     if args['repair']:
         # repair product reviews
         crawler.task_repair(args['repair'])
-
-    print(time.time() - start)
 
     if args['actualize'] or args['shop']:
         # Logs

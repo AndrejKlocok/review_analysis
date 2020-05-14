@@ -36,14 +36,22 @@ def see(data_path):
 
 
 def mse(data_path):
+    """
+    Get mean squared error from output of prediction of score by bert regression model.
+    :param data_path: path to output directory
+    :return:
+    """
+    # read evaluated data
     df_result = pd.read_csv(data_path + 'eval_text.tsv', sep='\t')
     d = {}
+    # init dictionary [label]=[prediction1, prediction2, ...]
     for index, row in df_result.iterrows():
         if row['label'] not in d:
             d[row['label']] = []
-        if len(d[row['label']]) < 93:
-            d[row['label']].append(row['prediction'])
 
+        d[row['label']].append(row['prediction'])
+
+    # print statistics for every predicted rating category
     for key, value in d.items():
         key_l = [key]*len(value)
         mse = mean_squared_error(key_l, value)

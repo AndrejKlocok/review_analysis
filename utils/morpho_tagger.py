@@ -1,8 +1,6 @@
-import argparse
 import re
 from re import finditer
 import json
-from enum import Enum
 from unidecode import unidecode
 from ufal.morphodita import Tagger, Forms, TaggedLemmas, TokenRanges
 from stop_words import get_stop_words
@@ -10,6 +8,9 @@ from .czech_stemmer import cz_stem
 
 
 class Preprocess:
+    """
+    Class handles pre processing of the text.
+    """
     def __init__(self):
         self.smiles = {}
         self.stop_words = [unidecode(w) for w in get_stop_words('cz')]
@@ -28,14 +29,24 @@ class Preprocess:
                            }
         self.wrong_categories = ["tras", "putov", "portal"]
 
-    def find_emoji(self, text):
+    def find_emoji(self, text: str):
+        """
+        Find emoji according to dictionary emoji_dict
+        :param text: input text
+        :return:
+        """
         for emoji in re.findall(self.regex_str, text):
             if emoji not in self.smiles:
                 self.smiles[emoji] = 0
             else:
                 self.smiles[emoji] += 1
 
-    def replace_emoji(self, text):
+    def replace_emoji(self, text: str):
+        """
+        Replace emoji from input text
+        :param text:
+        :return:
+        """
         to_replace = {}
         # Find smileys
         for match in finditer(self.regex_str, text):
@@ -51,6 +62,9 @@ class Preprocess:
 
 
 class WordPos:
+    """
+    Class holds words lemma and morphological tag within itself.
+    """
     def __init__(self, lemma, tag, token=None):
         self.lemma = lemma
         self.tag = tag
@@ -58,12 +72,6 @@ class WordPos:
 
     def __str__(self):
         return json.dumps(self.__dict__, ensure_ascii=False).encode('utf8').decode()
-
-
-class RevEnum(Enum):
-    pos = 1
-    con = 2
-    sum = 3
 
 
 class MorphoTagger:
@@ -76,20 +84,28 @@ class MorphoTagger:
         self.pos_wp = WordPos("pozitivn", "AA")
         self.neg_wp = WordPos("negativn", "AA")
 
-    def load_tagger(self, path=None):
-        if not path:
-            path = "/home/andrej/Documents/school/Diplomka/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
-            # path = "/mnt/data/xkloco00_pc5/review_analysis/external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger"
-
+    def load_tagger(self, path: str):
+        """
+        Load morphodita tagger from path
+        :param path:
+        :return:
+        """
         self.tagger = Tagger.load(path)
         if self.tagger is None:
             raise Exception("[morpho_tagger] Wrong path in tagger")
-
+        # create tokenizer
         self.tokenizer = self.tagger.newTokenizer()
         if self.tagger is None:
             raise Exception("[morpho_tagger] tokenizer not created")
 
-    def pos_tagging(self, text, stem=False, preprocess=True):
+    def pos_tagging(self, text: str, stem=False, preprocess=True):
+        """
+        Perform pos tagging of given text
+        :param text: input text
+        :param stem: use stem of word or just lemma
+        :param preprocess: use preprocess
+        :return: list of list of tagged words: List[List[WordPos]]
+        """
         lemmas = TaggedLemmas()
         tokens = TokenRanges()
         forms = Forms()
@@ -131,16 +147,8 @@ class MorphoTagger:
                         sentences.append(sentence)
                     sentence = []
                     continue
-                # we want to work with flexible POS, thus we dont need stop words
-                # if tag[0] not in self.flexible:
-                #    continue
-
                 # dont stem english words
                 if lemma.find("angl") != -1:
-                    # m = re.search(r'angl\._\w*', lemma)
-                    # if m:
-                    #    lemma = m.group().split("_")[1]
-                    # else:
                     eng_word = True
 
                 # remove additional informations
@@ -156,68 +164,3 @@ class MorphoTagger:
                 sentences.append(sentence)
 
         return sentences
-
-    def parse_review(self, review: dict, stem=True):
-        pos_stem = self.pos_tagging(". ".join(review["pros"]), stem)
-        i = 0
-        for sentence in pos_stem:
-            found_sentiment = False
-            for stem in sentence:
-                if stem.tag[0] == 'A':
-                    found_sentiment = True
-                    break
-            if not found_sentiment:
-                pos_stem[i] = [self.pos_wp] + pos_stem[i]
-            i += 1
-
-        con_stem = self.pos_tagging(". ".join(review["cons"]), stem)
-        i = 0
-        for sentence in con_stem:
-            found_sentiment = False
-            for stem in sentence:
-                if stem.tag[0] == 'A':
-                    found_sentiment = True
-                    break
-            if not found_sentiment:
-                con_stem[i] = [self.neg_wp] + con_stem[i]
-
-        sum_stem = self.pos_tagging(review["summary"], stem)
-
-        return pos_stem + con_stem + sum_stem
-
-
-def main():
-    from termcolor import colored
-
-    parser = argparse.ArgumentParser(
-        description="Script morpho tagger")
-    # parser.add_argument('-file', '--file', help='Aspect file', required=True)
-    # parser.add_argument('-name', '--name', help='Name of aspect category', required=True)
-    # parser.add_argument('-w', '--words', help='Key words')
-    # args = vars(parser.parse_args())
-
-    # file = open(args["file"], "a")
-
-    tagger = MorphoTagger()
-    tagger.load_tagger()
-
-    # aspect = {"name":args["name"], "lemma_list":[]}
-    # s = tagger.pos_tagging(args["words"])#"ceny hodnota financne finančně drahý korun czk")
-    while True:
-        try:
-            query = input(colored('your query: ', 'green'))
-            s = tagger.pos_tagging(query)
-            for sentence in s:
-                for wp in sentence:
-                    print(wp.lemma)
-
-        except Exception as e:
-            print("[tagger] Exception: " + str(e))
-
-            # if wp.lemma not in aspect["lemma_list"]:
-            # aspect["lemma_list"].append(wp.lemma)
-    # file.write(str(aspect))
-
-
-if __name__ == '__main__':
-    main()

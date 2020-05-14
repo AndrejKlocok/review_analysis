@@ -1,5 +1,5 @@
 *.txt
-external/*
+tmp/external/*
 *.json
 __pycache__*
 *_ex_*
@@ -8,6 +8,5 @@ __pycache__*
 *.7z
 results/*
 tmp/*
-tmp/bertviz
 .ipynb_checkpoints/*
 

@@ -4,9 +4,8 @@ import re
 import random
 import pandas as pd
 import sys
-from sklearn.model_selection import train_test_split
 
-from .elastic_connector import Connector
+from elastic_connector import Connector
 
 sentence_type_mapper = {
     'sentence = row': 0,
@@ -17,6 +16,10 @@ sentence_type_mapper = {
 
 
 class Generator:
+    """
+    Class holds all necessary information for data exporting with given arguments.
+    """
+
     def __init__(self, domain: str, connector: Connector, args, is_pro: bool = True,
                  is_con: bool = True, is_summary: bool = True):
         self.__domain = domain
@@ -36,31 +39,44 @@ class Generator:
         self.len_min = args['sentence_min_len']
         self.len_max = args['sentence_max_len']
 
-    def parse_reviews(self, cat_name, sentences):
-
+    def parse_reviews(self, cat_name: str, sentences: list):
+        """
+         Append parsed reviews from category defined by cat_name to sentences list.
+        :param cat_name:
+        :param sentences:
+        :return:
+        """
+        # get review list either way from shop domain or product domain
         if cat_name == 'shop':
             review_list, _ = self.__con.get_shop_reviews()
         else:
             review_list, _ = self.__con.get_reviews_from_category(cat_name)
 
+        # loop over reviews
         for review in review_list:
             try:
                 review_sentences = []
                 rating = round((int(review['rating'][:-1])) / 100, 3)
 
-                # write data TODO refactor this code
+                # for each section of reviews as pro/con/summary export sentences with given sentence type
+                # define by sentence_type_mapper
                 if self.is_pro:
+                    # pro section
                     if self.is_just_sentence >= 2:
+                        # whole section of pro as one entry
                         sen = []
                         [self.__get_sentence(pro, sen) for pro in review["pros"]]
                         if sen:
                             sen_txt = " ".join(s[:-1] for s in sen).strip()
                             review_sentences.append(sen_txt + "\n")
                     else:
+                        # append each pro section individually
                         [self.__get_sentence(pro, review_sentences) for pro in review["pros"]]
 
                 if self.is_con:
+                    # con section
                     if self.is_just_sentence >= 2:
+                        # whole section of con as one entry
                         sen = []
                         [self.__get_sentence(c, sen) for c in review["cons"]]
                         if sen:
@@ -70,18 +86,22 @@ class Generator:
                         [self.__get_sentence(c, review_sentences) for c in review["cons"]]
 
                 if self.is_summary:
+                    # summary section
                     if self.is_just_sentence >= 2:
+                        # whole section of summary as one entry
                         sen = []
                         self.__get_sentence(review["summary"], sen)
                         if sen:
                             sen_txt = " ".join(s[:-1] for s in sen).strip()
                             review_sentences.append(sen_txt + "\n")
                     else:
+                        # append summary section by parts ( sentences)
                         self.__get_sentence(review["summary"], review_sentences)
 
+                # if the whole review as option concatenate all
                 if self.is_just_sentence == 3 and review_sentences:
                     review_sentences = [(" ".join(s[:-1] for s in review_sentences).strip() + "\n")]
-
+                # rating
                 if self.rating:
                     review_sentences = [(s, rating) for s in review_sentences]
 
@@ -89,9 +109,14 @@ class Generator:
 
             except Exception as e:
                 pass
-                #print('Review {}, exception: {}'.format(str(review), str(e)))
 
     def get_sentences(self, shuffle=False):
+        """
+        Get sentences from subcategories by n top categories, whole domain or selected category
+        :param shuffle: do shuffle output
+        :return:
+        """
+        # get list of pairs [(category, count)]
         data = self.__con.get_subcategories_count(self.__domain)
         sentences = []
         # desired subcategory is selected
@@ -115,6 +140,11 @@ class Generator:
         return sentences
 
     def get_data_api_call(self, shuffle=False):
+        """
+        Handle from back-end server, generate dataset with given category list.
+        :param shuffle:
+        :return:
+        """
         sentences = []
         for category in self.categories:
             sentences_cat = []
@@ -127,6 +157,13 @@ class Generator:
         return sentences
 
     def __get_sentence(self, s: str, sentences: list, regex=r'[,.]'):
+        """
+        Export sentence to sentences list with given rules.
+        :param s: sentence
+        :param sentences: list of sentences
+        :param regex:
+        :return:
+        """
         if self.is_just_sentence == 0:
             l = re.split(regex, s)
         else:
@@ -143,11 +180,24 @@ class Generator:
                 sentences.append(sentence + "\n")
 
     def __split_list(self, sentences, ratio):
+        """
+        Split list of sentences by given ration
+        :param sentences:
+        :param ratio:
+        :return:
+        """
         n = len(sentences)
         count = int(n * ratio)
         return sentences[:count], sentences[count:]
 
     def bert(self, s_list, regression=False, csv=True):
+        """
+        Export dataset to train/test with option of bert-style format
+        :param s_list:
+        :param regression:
+        :param csv:
+        :return:
+        """
         try:
             all_sentences = []
             dev_size = 0.2
@@ -192,8 +242,8 @@ class Generator:
                     df_bert_train.to_csv('train.tsv', sep='\t', index=False, header=False)
                     df_bert_dev.to_csv('dev.tsv', sep='\t', index=False, header=False)
                 else:
-                    train = ['\t'.join(row)+'\n' for row in dataset_train]
-                    dev = ['\t'.join(row)+'\n' for row in dataset_dev]
+                    train = ['\t'.join(row) + '\n' for row in dataset_train]
+                    dev = ['\t'.join(row) + '\n' for row in dataset_dev]
                     return train, dev
 
         except Exception as e:
@@ -201,11 +251,20 @@ class Generator:
 
 
 class GeneratorController:
+    """
+    Controller for dataset generation from back-end api.
+    """
+
     def __init__(self, connector: Connector):
         # Elastic
         self.con = connector
 
     def generate(self, args):
+        """
+        Export dataset with given arguments
+        :param args:
+        :return: data dictionary
+        """
         data = {
             'error': None
         }
@@ -225,6 +284,7 @@ class GeneratorController:
             data['error'] = 'Empty categories field'
             return data
 
+        # create Generator instance
         generator = Generator(domain='', connector=self.con, args=args)
 
         if args['task_type'] == 'embeddings':
@@ -242,6 +302,11 @@ class GeneratorController:
         return data
 
     def __embeddings_task(self, generator: Generator):
+        """
+        Export data in sentences to embeddings.txt
+        :param generator:
+        :return:
+        """
         d = {}
 
         try:
@@ -254,15 +319,21 @@ class GeneratorController:
             return d
 
     def __cls_task(self, generator: Generator):
+        """
+        Export data for classification tasks
+        :param generator:
+        :return:
+        """
         d = {}
         try:
+            # setup generator for extracting positive and then negative sentences
             generator.is_summary = False
             generator.is_con = False
             sentences_pro = generator.get_data_api_call(True)
             generator.is_con = True
             generator.is_pro = False
             sentences_con = generator.get_data_api_call(True)
-
+            # equal flag
             if generator.is_equal:
                 l_pro = len(sentences_pro)
                 l_con = len(sentences_con)
@@ -271,7 +342,7 @@ class GeneratorController:
                 elif l_pro < l_con:
                     sentences_con = sentences_pro[:l_pro]
 
-
+            # bert option
             if generator.is_bert:
                 train, dev = generator.bert([sentences_pro, sentences_con], csv=False)
                 d['train.tsv'] = train
@@ -287,6 +358,11 @@ class GeneratorController:
             return d
 
     def __regression_task(self, generator: Generator):
+        """
+        Generate data as regression task, used in rating model.
+        :param generator:
+        :return:
+        """
         data = {}
         try:
             d = {}
@@ -300,7 +376,9 @@ class GeneratorController:
                     d[rating] = []
 
                 d[rating].append((s, rating))
+            # error when reviews has 0% rating on heureka
             d.pop(0.0, None)
+            # equal flag, all categories must have the same ammount of sentences
             if generator.is_equal:
                 d_eq = {}
                 min = len(d[1.0])
@@ -310,7 +388,7 @@ class GeneratorController:
                 for key, value in d.items():
                     d_eq[key] = d[key][:min]
                 d = d_eq
-
+            # export data in bert style
             if generator.is_bert:
                 l = [val for _, val in d.items()]
                 train, dev = generator.bert(l, regression, csv=False)
@@ -318,7 +396,7 @@ class GeneratorController:
                 data['dev.tsv'] = dev
             else:
                 for key, value in d.items():
-                    name = 'dataset'+ '_' + str(key)+'.txt'
+                    name = 'dataset' + '_' + str(key) + '.txt'
                     data[name] = [val for val, _ in value]
 
             # regression dataset statistics
@@ -336,6 +414,11 @@ class GeneratorController:
 
 
 def task_emb(generator: Generator):
+    """
+    Export data to dataset_emb.txt file in working directory.
+    :param generator:
+    :return:
+    """
     try:
         with open("dataset_emb.txt", "w") as file:
             sentences = generator.get_sentences(True)
@@ -355,6 +438,11 @@ def task_emb(generator: Generator):
 
 
 def statistics(dataset):
+    """
+    Compute statistics for given exporting task.
+    :param dataset:
+    :return:
+    """
     i = 0
     stats = []
     regex = r'[.]'
@@ -373,22 +461,29 @@ def statistics(dataset):
                     sentences_per_line += 1
             tokens_per_line += tokens
 
-        stats.append("\t\t sentences per line " + str((sentences_per_line / len(category_dataset)))+'\n')
-        stats.append("\t\t tokens per line " + str((tokens_per_line / len(category_dataset)))+'\n')
+        stats.append("\t\t sentences per line " + str((sentences_per_line / len(category_dataset))) + '\n')
+        stats.append("\t\t tokens per line " + str((tokens_per_line / len(category_dataset))) + '\n')
         i += 1
     return stats
 
-def task_cls(generator: Generator):
-    try:
-        generator.is_summary = False
-        name = "dataset"
 
+def task_cls(generator: Generator):
+    """
+    Export dataset for classification task to the current working dictionary
+    :param generator:
+    :return:
+    """
+    try:
+        name = "dataset"
+        # set up generator to export data
+        generator.is_summary = False
         generator.is_con = False
         sentences_pro = generator.get_sentences(True)
         generator.is_con = True
         generator.is_pro = False
         sentences_con = generator.get_sentences(True)
 
+        # equal flag
         if generator.is_equal:
             l_pro = len(sentences_pro)
             l_con = len(sentences_con)
@@ -398,10 +493,11 @@ def task_cls(generator: Generator):
                 sentences_con = sentences_pro[:l_pro]
 
             assert (len(sentences_pro) == len(sentences_con)), "Same length"
-
+        # bert style
         if generator.is_bert:
             generator.bert([sentences_pro, sentences_con])
 
+        # compute statistics
         statistics([sentences_pro, sentences_con])
 
         with open(name + "_positive.txt", "w") as f_pros:
@@ -413,39 +509,31 @@ def task_cls(generator: Generator):
         print("[task_cls] Exception: " + str(e), file=sys.stderr)
 
 
-def reviews_nratings(generator: Generator, n_cat):
+def reviews_nratings(generator: Generator):
+    """
+    Export dataset as regression task with review rating.
+    :param generator:
+    :return:
+    """
     try:
-        from time import sleep
         generator.is_summary = True
         generator.is_con = True
         generator.is_pro = True
         generator.rating = True
         generator.len_min = 1
         generator.len_max = 30
-        name = "dataset"
-        regression = False
         d = {}
 
-        if n_cat > 1:
-            # TODO handle this for boxing according to [(sentence, rating)]
-            sentences = generator.get_sentences(True)
-            delta = int(100 / n_cat)
-            d = {}
-            for x in range(0, n_cat):
-                d[str(x)] = sentences
-                sleep(1)
-        else:
-            # regression task, need to sort sentences according to rating from 0 to 100
-            # sentences = sorted(sentences, key=lambda x:x[1], reverse=False)
-            sentences = generator.get_sentences(shuffle=True)
-            regression = True
-            for s, rating in sentences:
-                if rating not in d:
-                    d[rating] = []
-                d[rating].append((s, rating))
+        # regression task, need to sort sentences according to rating from 0 to 100
+        # sentences = sorted(sentences, key=lambda x:x[1], reverse=False)
+        sentences = generator.get_sentences(shuffle=True)
+
+        for s, rating in sentences:
+            if rating not in d:
+                d[rating] = []
+            d[rating].append((s, rating))
 
         if generator.is_equal:
-            # TODO handle this for boxing according to [(sentence, rating)], not needed for regression
             d_eq = {}
             min = len(d['0'])
             for key, value in d.items():
@@ -458,21 +546,13 @@ def reviews_nratings(generator: Generator, n_cat):
 
         if generator.is_bert:
             l = [val for _, val in d.items()]
-            generator.bert(l, regression)
+            generator.bert(l, True)
 
-        if regression:
-            l = []
-            l_tmp = sorted(d)
-            for val in l_tmp:
-                l.append([s for s, rating in d[val]])
-            statistics(l)
-
-        else:
-            statistics([val for _, val in d.items()])
-            for key, value in d.items():
-                with open(name + '_' + key, 'w') as file:
-                    for s in value:
-                        file.write(s)
+        l = []
+        l_tmp = sorted(d)
+        for val in l_tmp:
+            l.append([s for s, rating in d[val]])
+        statistics(l)
 
     except Exception as e:
         print("[reviews_nratings] Exception: " + str(e), file=sys.stderr)
@@ -510,9 +590,7 @@ def main():
 
     parser.add_argument('-b', '--bert', help='Generate also data for Bert model (train.tsv, test.tsv, dev.tsv)',
                         action='store_true')
-    parser.add_argument('-neur', '--neuron',
-                        help='Generate dataset for one-neuron model (train.csv, test.csv, dev.csv)',
-                        action='store_true')
+
     parser.add_argument('-s', '--sentence_type', help="Sentences in dataset \n"
                                                       + "0 -> one sentence one row\n"
                                                       + "1 -> one \"section\" of pro/con review one row\n"
@@ -548,7 +626,7 @@ def main():
         task_cls(gen)
     elif args['rating']:
         gen = Generator(category, con, args)
-        reviews_nratings(gen, args['rating'])
+        reviews_nratings(gen)
 
     print(time.time() - start)
 

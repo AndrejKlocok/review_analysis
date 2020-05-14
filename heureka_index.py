@@ -1,12 +1,17 @@
 import argparse, time, sys, json, os
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
+
 sys.path.append('../')
 from utils.elastic_connector import Connector
 from collections import OrderedDict
 
 
 class Files:
+    """
+    Class handles file operations
+    """
+
     def __init__(self, category):
         self.category = category
         self.url_no_rev = None
@@ -15,23 +20,44 @@ class Files:
         self.crawled_categories = None
 
     def __open(self, mode: str):
+        """
+        Open all necessary files.
+        :param mode: open mode
+        :return:
+        """
         self.url_no_rev = open(self.category + "_url_no_rev.txt", mode)
         self.url_log = open(self.category + "_url_log.txt", mode)
         self.url_file = open(self.category + ".txt", mode)
 
     def open_write(self):
+        """
+        Open files in write mode.
+        :return:
+        """
         self.__open("w")
 
     def open_append(self):
+        """
+        Open files in append mode and get domain categories.
+        :return:
+        """
         self.crawled_categories = self.get_crawled_categories()
         self.__open("a")
 
     def close(self):
+        """
+        Close opened files.
+        :return:
+        """
         self.url_file.close()
         self.url_no_rev.close()
         self.url_log.close()
 
     def get_crawled_categories(self) -> list:
+        """
+
+        :return:
+        """
         categories = []
         file_lines = {}
         with open(self.category + ".txt", "r") as file:
@@ -42,7 +68,7 @@ class Files:
                         categories.append(c)
                         file_lines[c] = []
                     file_lines[c].append(line)
-                except:
+                except Exception as e:
                     pass
         file_lines.pop(categories[-1])
         categories = categories[:-1]
@@ -61,22 +87,42 @@ class Files:
 
 
 class Statistics:
+    """
+    Class handles statistics of heureka crawling
+    """
+
     def __init__(self):
         self.reviews_count = 0
         self.reviews_reachable = 0
         self.products_count = 0
 
     def merge(self, stats):
+        """
+        Merge category statistics.
+        :param stats:
+        :return:
+        """
         self.reviews_count += stats.reviews_count
         self.reviews_reachable += stats.reviews_reachable
         self.products_count += stats.products_count
 
-    def add(self, reviews_count=0, reviews_reachable=0, products_count=0):
+    def add(self, reviews_count: int = 0, reviews_reachable: int = 0, products_count: int = 0):
+        """
+        Add statistics to class variables.
+        :param reviews_count: count of all product reviews
+        :param reviews_reachable: count ouf reachable product reviews
+        :param products_count: count of products
+        :return:
+        """
         self.reviews_count += reviews_count
         self.reviews_reachable += reviews_reachable
         self.products_count += products_count
 
     def __str__(self):
+        """
+        ToString method
+        :return:
+        """
         return json.dumps({
             "reviews count": self.reviews_count,
             "reviews_reachable": self.reviews_reachable,
@@ -84,7 +130,10 @@ class Statistics:
         }, indent=2)
 
 
-class HeurekaIndex():
+class HeurekaIndex:
+    """
+    Class handles product url indexing from heureka to txt files.
+    """
     def __init__(self, connector):
         self.category_url = OrderedDict([
             ('Elektronika', 'https://elektronika.heureka.cz/'),
@@ -93,7 +142,7 @@ class HeurekaIndex():
             ('Chovatelstvi', 'https://chovatelstvi.heureka.cz/'),
             ('Auto-moto', 'https://auto-moto.heureka.cz/'),
             ('Detske zbozi', 'https://detske-zbozi.heureka.cz/'),
-            ('Obleceni a moda', 'https://moda.heureka.cz/')
+            ('Obleceni a moda', 'https://moda.heureka.cz/'),
             ('Filmy knihy hry', 'https://filmy-hudba-knihy.heureka.cz/'),
             ('Kosmetika a zdravi', 'https://kosmetika-zdravi.heureka.cz/'),
             ('Sport', 'https://sport.heureka.cz/'),
@@ -106,12 +155,19 @@ class HeurekaIndex():
         self.connector = connector
         self.stats = Statistics()
 
-    def parse_products(self, product, files: Files, stats: Statistics):
+    def parse_product(self, product, files: Files, stats: Statistics):
+        """
+         Write product to url file and save meta data to stats.
+        :param product: BeautifulSoup instance
+        :param files: Files instance
+        :param stats: Statistics instance
+        :return:
+        """
         prod: BeautifulSoup = product.find(class_="review-count")
-
+        # if product does not have any reviews
         if not prod:
             files.url_no_rev.write(product.find("a").get("href") + "\n")
-
+        # other way write product and save meta data
         else:
             files.url_file.write(prod.find("a").get("href") + "\n")
 
@@ -122,7 +178,14 @@ class HeurekaIndex():
             else:
                 stats.add(reviews_count=rev_count, reviews_reachable=rev_count, products_count=1)
 
-    def parse_fashion_products(self, product, files: Files, stats: Statistics):
+    def parse_fashion_product(self, product, files: Files, stats: Statistics):
+        """
+        Write fashion product to url file and save meta data to stats.
+        :param product: BeautifulSoup instance
+        :param files: Files instance
+        :param stats: Statistics instance
+        :return:
+        """
         href: str = product.find(class_="image").find("a").get("href")
         if href[-1] != "/":
             href += "/"
@@ -147,13 +210,25 @@ class HeurekaIndex():
                 stats.add(reviews_count=rev_count, reviews_reachable=rev_count, products_count=1)
 
     def parse_domain(self, catlist: BeautifulSoup, files: Files, main_category: str, stats: Statistics):
+        """
+        Recursively parse domain category for product urls
+        :param catlist: html
+        :param files:   Files instance
+        :param main_category: domain name
+        :param stats: Statistics instance
+        :return:
+        """
         def _parse_category():
+            """
+            Parse concrete product according to name of the main category
+            :return:
+            """
             if main_category == "Obleceni a moda":
                 products = infile.find_all(class_="p")
                 for product in products:
                     try:
-                        self.parse_fashion_products(product, files, item_stats)
-                    except:
+                        self.parse_fashion_product(product, files, item_stats)
+                    except Exception as e:
                         print(
                             "[parse_domain] Error in product " + product.find(class_="image").find(
                                 "a").get("href"),
@@ -163,8 +238,8 @@ class HeurekaIndex():
                 products = infile.find_all(class_="rw")
                 for product in products:
                     try:
-                        self.parse_products(product, files, item_stats)
-                    except:
+                        self.parse_product(product, files, item_stats)
+                    except Exception as e:
                         print("[parse_domain] Error in product " + product.find("a").get("href"),
                               file=sys.stderr)
                         pass
@@ -184,7 +259,7 @@ class HeurekaIndex():
                 if files.crawled_categories:
                     tmp = category.split("//")[1].split(".")[0]
                     if tmp in files.crawled_categories:
-                        print("Skipping " + tmp)
+                        print("Already analyzed: " + tmp)
                         continue
 
                 next = " "
@@ -201,15 +276,22 @@ class HeurekaIndex():
                             if category != "Obleceni a moda":
                                 catlist = infile.find_all(class_="catlist")
                                 self.parse_domain(catlist, files, main_category, item_stats)
-                    except:
+                    except Exception as e:
                         print("[parse_domain] Cant open " + category + next, file=sys.stderr)
                         break
 
                 stats.merge(item_stats)
 
-    def task(self, category, url):
+    def task(self, category: str, url: str):
+        """
+        Start crawling from domain category with starting point as url
+        :param category: domain name
+        :param url: url to heureka
+        :return:
+        """
+        # statistics instance
         stats = Statistics()
-
+        #  initialize files
         try:
             f = Files(category)
             f.open_write()
@@ -217,19 +299,17 @@ class HeurekaIndex():
         except IOError:
             print("Cant open files for category: " + category, file=sys.stderr)
             return
-
-        print(category, url)
-
+        # parse domain for product urls
         try:
             infile = BeautifulSoup(urlopen(url), "lxml")
-
+            # fashion has different style as the rest
             if category == "Obleceni a moda":
                 category_list = infile.find_all(class_="cat-list")
             else:
                 category_list = infile.find_all(class_="catlist")
-
+            # parse
             self.parse_domain(category_list, f, category, stats)
-
+            # merge statistics
             self.stats.merge(stats)
 
         except Exception as e:

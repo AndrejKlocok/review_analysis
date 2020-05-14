@@ -12,19 +12,27 @@ from fse import IndexedList
 
 
 class SVM_Classifier:
-    def __init__(self):
+    """
+    Class handles classification of sentence/text with trained SVM classifier which uses uSIF weighing scheme.
+    """
+    def __init__(self, path):
         self.model = None
         self.usif_model = None
-        path = '/mnt/data/xkloco00_pc5/model/'
 
+        # different paths
         self.irrelevant_path = path + 'irrelevant.tsv'
         self.svm_path = path + 'SVM/irrelevant_SVM.pkl'
-        self.sent2vec_path = path + 'sent2vec/sent2vec.model'
+        self.fse_path = path + 'fse/sent2vec.model'
         self.fasttext_path = path + 'fasttext/cc.cs.300.bin'
         self.embedding_path = path + 'embeddings.txt'
         self.embedding_indexable = None
 
-    def load_sentences(self, path):
+    def load_sentences(self, path: str):
+        """
+        Load sentences from which the SVM classifier will be trained on.
+        :param path: path to training dataset
+        :return:
+        """
         data = []
         with open(path, "r", encoding='utf-8') as file:
             for line in file:
@@ -41,10 +49,14 @@ class SVM_Classifier:
         return data
 
     def load_models(self):
+        """
+        Load trained models -> SVM classifier and uSIF embeddings
+        :return:
+        """
         with open(self.svm_path, 'rb') as f:
             self.model = pickle.load(f)
 
-        self.usif_model = uSIF.load(self.sent2vec_path)
+        self.usif_model = uSIF.load(self.fse_path)
         lines = []
         with open(self.embedding_path, 'r') as file:
             for line in file:
@@ -52,8 +64,13 @@ class SVM_Classifier:
         self.embedding_indexable = IndexedList(lines)
 
     def init__usif(self):
+        """
+        Train and save uSIF embedding model.
+        :return:
+        """
         embeddings = []
         i = 0
+        # load dump of review analysis sentences
         with open(self.embedding_path, 'r') as f:
             for line in f:
                 line = line[:-1]
@@ -63,12 +80,17 @@ class SVM_Classifier:
                 embeddings.append( (line.split(), i) )
                 i+=1
         print('Total lines {}'.format(str(i)))
+        # get fasttext and train usif model on them
         fasttext = load_facebook_model(self.fasttext_path)
         self.usif_model = uSIF(fasttext, workers=16)
         self.usif_model.train(embeddings)
-        self.usif_model.save(self.sent2vec_path)
+        self.usif_model.save(self.fse_path)
 
     def create_model(self):
+        """
+        Train SVM classifier on uSIF embeddings and print results.
+        :return:
+        """
         data = self.load_sentences(self.irrelevant_path)
         model = SVC(C=100, gamma=0.01, kernel='rbf')
         data_x, data_y = zip(*data)
@@ -79,7 +101,7 @@ class SVM_Classifier:
             data_embed.append((sentence.split(), i))
             i += 1
 
-        self.usif_model = uSIF.load(self.sent2vec_path)
+        self.usif_model = uSIF.load(self.fse_path)
         features = self.usif_model.infer(data_embed)
         labels = data_y
         X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.20)
@@ -89,11 +111,19 @@ class SVM_Classifier:
         with open(self.svm_path, 'wb') as f:
             pickle.dump(model, f)
 
-    def eval_example(self, sentence):
+    def eval_example(self, sentence: str):
+        """
+        Evaluate sentence with irrelevant classifier based on SVM with uSIF embeddings
+        :param sentence: string
+        :return: string representing a label
+        """
+        # simple preprocess of sentence
         sentence = sentence.lower()
         sentence = re.sub(r'\d+', '', sentence)  # numbers
         sentence = re.sub(r'\p{P}+', '', sentence)  # punc
+        # transfer sentence
         features = self.usif_model.infer([(sentence.split(), 0)])
+        # predict label
         y_pred = self.model.predict(features)
         if y_pred[0] == '0':
             return 'irrelevant'
@@ -101,6 +131,11 @@ class SVM_Classifier:
             return 'normal'
 
     def get_most_similar_sentences(self, sentence):
+        """
+        Get most similar sentence from trained sentences.
+        :param sentence:
+        :return:
+        """
         return self.usif_model.sv.similar_by_sentence(sentence.split(), self.usif_model,
                                                self.embedding_indexable.items)
 

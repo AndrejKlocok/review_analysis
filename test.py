@@ -54,7 +54,7 @@ def morpho(category):
     f = Files(category)
     seed_aspects = f.get_aspects()
     tagger = MorphoTagger()
-    tagger.load_tagger("external/morphodita/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
+    tagger.load_tagger("../model/czech-morfflex-pdt-161115-no_dia-pos_only.tagger")
     wrong_categories = []
 
     with open("aspect_log.txt", "w") as log:

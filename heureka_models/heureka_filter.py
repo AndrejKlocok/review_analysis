@@ -1,14 +1,15 @@
 import sys
+
 sys.path.append('../')
 from clasification.SVM_model import SVM_Classifier
 
 
 class HeurekaFilter:
-    def __init__(self, useCls:bool):
+    def __init__(self, useCls: bool):
 
         self.model = None
         if useCls:
-            self.model = SVM_Classifier()
+            self.model = SVM_Classifier(path='../../model/')
             self.model.load_models()
 
         self.log_file = None

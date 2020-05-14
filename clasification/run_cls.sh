@@ -4,7 +4,7 @@ export TASK_NAME=bipolar
 
 python transformers_cls.py \
   --model_type bert \
-  --model_name_or_path /tmp/xkloco00/multi_cased_L-12_H-768_A-12 \
+  --model_name_or_path /mnt/data/xkloco00_pc5/external/multi_cased_L-12_H-768_A-12 \
   --task_name $TASK_NAME \
   --do_train \
   --data_dir $DATA_DIR \

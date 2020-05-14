@@ -17,12 +17,16 @@ from stop_words import get_stop_words
 import time, string
 import regex as re
 import nltk
+from time import time
 
 import logging
 import random
 
 
 class Tokenizer(object):
+    """
+    Class wraps nltk tokenization feature
+    """
     def __init__(self):
         nltk.download('punkt', quiet=True, raise_on_error=True)
 
@@ -32,6 +36,9 @@ class Tokenizer(object):
 
 
 class Tester:
+    """
+    Class handles testing the best version of classifier for all models used in publication.
+    """
     def __init__(self, czech=None):
         if not czech:
             czech = nltk.word_tokenize(' '.join(get_stop_words('cz')))
@@ -54,33 +61,33 @@ class Tester:
                 'cls__kernel': ('linear', 'rbf', 'poly', 'sigmoid')
             },
             # NuSVC
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__nu': (0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65),
-            #    'cls__kernel': ('linear', 'rbf', 'poly', 'sigmoid')
-            # },
+            {
+                'vect__max_df': (0.5, 0.75, 1.0),
+                'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
+                'vect__norm': ('l1', 'l2', None),
+                'vect__stop_words': (czech, None),
+                'cls__nu': (0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65),
+                'cls__kernel': ('linear', 'rbf', 'poly', 'sigmoid')
+            },
             # Random Forrest
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__max_depth': (None, 10, 20, 30, 40, 50, 60, 70, 80, 90),
-            #    'cls__max_feat': (10, 20, 30, 40, 50, 'sqrt', None),
-            # },
+            {
+                'vect__max_df': (0.5, 0.75, 1.0),
+                'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
+                'vect__norm': ('l1', 'l2', None),
+                'vect__stop_words': (czech, None),
+                'cls__max_depth': (None, 10, 20, 30, 40, 50, 60, 70, 80, 90),
+                'cls__max_feat': (10, 20, 30, 40, 50, 'sqrt', None),
+            },
             # Logistic regression
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__C': (0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000),
-            #    'cls__class_weight': ('balanced', None),
-            #    'cls__penalty': ('l1', 'l2')
-            # },
+            {
+                'vect__max_df': (0.5, 0.75, 1.0),
+                'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
+                'vect__norm': ('l1', 'l2', None),
+                'vect__stop_words': (czech, None),
+                'cls__C': (0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000),
+                'cls__class_weight': ('balanced', None),
+                'cls__penalty': ('l1', 'l2')
+            },
             # Multi-layer Perceptron
             # {
             #    'vect__max_df': (0.5, 0.75, 1.0),
@@ -93,30 +100,34 @@ class Tester:
             #   'cls__solver': ('lbfgs', 'sgd', 'adam')
             # },
             # Naive Bayes
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__alpha': (0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5),
-            #    'cls__fit_prior': (True, False)
-            # },
+            {
+                'vect__max_df': (0.5, 0.75, 1.0),
+                'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
+                'vect__norm': ('l1', 'l2', None),
+                'vect__stop_words': (czech, None),
+                'cls__alpha': (0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5),
+                'cls__fit_prior': (True, False)
+            },
             # Maximum Entropy
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__method': ('gis', 'iis', 'megam', 'tadm')
-            # }
+            {
+                'vect__max_df': (0.5, 0.75, 1.0),
+                'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
+                'vect__norm': ('l1', 'l2', None),
+                'vect__stop_words': (czech, None),
+                'cls__method': ('gis', 'iis', 'megam', 'tadm')
+            }
 
         ]
         self.pipeline_data = zip(self._classifiers, self.parameters)
 
     def get_best_params(self, data_x, data_y):
-        from time import time
+        """
+        Get best parameters for data through pipeline, that is set up
+        :param data_x:
+        :param data_y:
+        :return:
+        """
         for cls, parameters in self.pipeline_data:
-            # #############################################################################
             # Define a pipeline combining a text feature extractor with a simple
             # classifier
             pipeline = Pipeline([
@@ -124,18 +135,16 @@ class Tester:
                 ('cls', cls),
             ])
             t0 = time()
-            # classifier
             jobs = 4
-
+            # classifier
             grid_search = GridSearchCV(pipeline, parameters, cv=3,
                                        n_jobs=jobs, verbose=1, pre_dispatch=2 * jobs)
 
-            print("Performing grid search...")
             print("pipeline:", [name for name, _ in pipeline.steps])
-
+            # fit the data
             grid_search.fit(data_x, data_y)
             print("done in %0.3fs" % (time() - t0))
-
+            # print results and best parameters
             print("Best score: %0.3f" % grid_search.best_score_)
             print("Best parameters set:")
             best_parameters = grid_search.best_estimator_.get_params()
