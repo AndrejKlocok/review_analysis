@@ -9,7 +9,7 @@ class HeurekaFilter:
 
         self.model = None
         if useCls:
-            self.model = SVM_Classifier(path='../../model/')
+            self.model = SVM_Classifier(path='../model/')
             self.model.load_models()
 
         self.log_file = None
