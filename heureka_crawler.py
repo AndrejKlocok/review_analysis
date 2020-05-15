@@ -258,9 +258,10 @@ class HeurekaCrawler:
                     r_d['pros'], r_d['cons'], r_d['summary'])
 
                 # perform evaluation with models
-                rating_model = self.rating_model.eval_sentence(review_text)
-                if rating_model:
-                    r_d['rating_model'] = rating_model
+                if review_text:
+                    rating_model = self.rating_model.eval_sentence(review_text)
+                    if rating_model:
+                        r_d['rating_model'] = rating_model
 
                 if self.filter_model.model:
                     r_d['filter_model'] = True
