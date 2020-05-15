@@ -57,11 +57,11 @@ class SVM_Classifier:
             self.model = pickle.load(f)
 
         self.usif_model = uSIF.load(self.fse_path)
-        lines = []
-        with open(self.embedding_path, 'r') as file:
-            for line in file:
-                lines.append(line[:-1].split())
-        self.embedding_indexable = IndexedList(lines)
+        #lines = []
+        #with open(self.embedding_path, 'r') as file:
+        #    for line in file:
+        #        lines.append(line[:-1].split())
+        #self.embedding_indexable = IndexedList(lines)
 
     def init__usif(self):
         """

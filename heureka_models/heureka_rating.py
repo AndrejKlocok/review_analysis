@@ -5,7 +5,7 @@ from clasification.bert_model import Bert_model
 
 class HeurekaRating:
     def __init__(self, useModel: bool):
-        path = '../../model/'
+        path = '../model/'
         self.regression_model = None
 
         if useModel:
