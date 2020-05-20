@@ -1,3 +1,11 @@
+"""
+This file contains implementation of class Preprocess, used for emoji replacement, class WordPos for representation of
+processed word and class MorphoTagger, which is used for prepossessing of the text and then POS tagging. MorphoTagger
+is used in every preprocess task.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import re
 from re import finditer
 import json
@@ -75,6 +83,10 @@ class WordPos:
 
 
 class MorphoTagger:
+    """
+    Class is used for POS tagging of text with use of morphodita. Class loads morphodita model from model directory, as
+    described in README.md
+    """
     def __init__(self):
         self.tagger_path = None
         self.tagger = None
@@ -86,7 +98,7 @@ class MorphoTagger:
 
     def load_tagger(self, path: str):
         """
-        Load morphodita tagger from path
+        Load morphodita tagger from path.
         :param path:
         :return:
         """

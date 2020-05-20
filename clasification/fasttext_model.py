@@ -1,3 +1,9 @@
+"""
+This file contains implementation for FastText model represented by FastTextModel class, which is mainly used for
+similarity clustering operations and enum classes for providing better argument handling.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
 from fse.models import Average, SIF, uSIF
 from fse import IndexedList
 from gensim.models.fasttext import load_facebook_model, FastText

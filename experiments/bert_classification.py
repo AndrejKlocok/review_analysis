@@ -1,3 +1,10 @@
+"""
+This file contains implementation of utilities such as mean squared error computation, selection of incorrectly
+ classified data and transformation of mall dataset to bert format.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 import random, sys
@@ -7,10 +14,12 @@ from generate_dataset import statistics, Generator
 from utils.elastic_connector import Connector
 
 
-def load_datasets(dataset_path):
-    sentences_cons = []
-    sentences_pros = []
-
+def load_datasets(dataset_path: str):
+    """
+    Load bipolar datasets  negative.txt and positive.txt from dataset path
+    :param dataset_path: the path of dataset
+    :return:
+    """
     with open(dataset_path + "negative.txt", encoding='utf-8') as file:
         sentences_cons = [(line[:-1], 1) for line in file]
 
@@ -21,6 +30,12 @@ def load_datasets(dataset_path):
 
 
 def see(data_path):
+    """
+    Parse output of evaluation of Bert bipolar classification model and dump predictions, which model classified
+    incorrectly.
+    :param data_path:
+    :return:
+    """
     # read the results data for the probabilities
     df_result = pd.read_csv(data_path + 'eval_text.tsv', sep='\t')
 
@@ -35,7 +50,7 @@ def see(data_path):
     df_results_wrong.to_csv(data_path + 'results_wrong.tsv', sep='\t', header=True, index=False)
 
 
-def mse(data_path):
+def mse(data_path: str):
     """
     Get mean squared error from output of prediction of score by bert regression model.
     :param data_path: path to output directory
@@ -66,11 +81,14 @@ def mse(data_path):
         print(ret)
 
 
-def mall(path):
+def mall(path: str):
+    """
+    Generate Bert model dataset format from mall dataset.
+    :param path: path to dataset
+    :return:
+    """
     def _getlines(file):
         return [ line for line in file]
-    negative_sentences = []
-    positive_sentences = []
     with open(path+'negative.txt') as file:
         negative_sentences = _getlines(file)
     with open(path+'positive.txt') as file:
@@ -80,6 +98,7 @@ def mall(path):
 
     neg_l = len(negative_sentences)
     positive_sentences = positive_sentences[:neg_l]
+    # dcompute statistics
     statistics([positive_sentences, negative_sentences])
     d = {
         'bert': True,
@@ -89,6 +108,7 @@ def mall(path):
         'num_category': 1,
         'category': '',
     }
+    # generate dataset
     con = Connector()
     gen = Generator('mall', con, d)
     gen.bert([positive_sentences, negative_sentences])
@@ -96,7 +116,7 @@ def mall(path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Scrip generates desired dataset from utils db")
+        description="Scrip is used for dataset")
 
     parser.add_argument('-in', '--data_path_in', help='Dataset path', default='.')
     parser.add_argument('-s', '--see', help='See wrong results of classification', action='store_true')

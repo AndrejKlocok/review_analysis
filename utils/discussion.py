@@ -1,3 +1,10 @@
+"""
+This file contains model representation of Review, Product, Aspect and AspectCategory, that can be crawled with heureka
+crawler class.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import json
 from datetime import date, timedelta
 

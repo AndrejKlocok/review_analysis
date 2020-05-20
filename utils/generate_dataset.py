@@ -1,3 +1,9 @@
+"""
+This file contains implementation of Generator class, which contains core implementation of extracting text from elastic
+search indexes and GeneratorController, which is used by back-end server.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
 import argparse
 import time
 import re
@@ -22,6 +28,15 @@ class Generator:
 
     def __init__(self, domain: str, connector: Connector, args, is_pro: bool = True,
                  is_con: bool = True, is_summary: bool = True):
+        """
+        Constructor initalize generation process by storing passed arguments.
+        :param domain:
+        :param connector:
+        :param args:
+        :param is_pro:
+        :param is_con:
+        :param is_summary:
+        """
         self.__domain = domain
         self.__con = connector
         self.is_pro = is_pro

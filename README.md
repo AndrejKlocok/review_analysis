@@ -9,9 +9,6 @@ There are more information about these projects in theirs README.md file, how to
 # Project setup
 Project structure needs to follow schema of working directory 
 ```
-├── review_analysis
-├── review analysis-backend
-├── review analysis-front-end
 ├── model
 |    ├── bert_bipolar
 |    ├── bert_bipolar_domain
@@ -36,7 +33,10 @@ Project structure needs to follow schema of working directory
 |    ├── czech-morfflex-pdt-161115-no_dia-pos_only.tagger
 |    ├── embeddings.txt
 |    └── irrelevant.tsv
-└── elasticsearch-backup
+├── review_analysis
+├── review analysis-backend
+└── review analysis-front-end
+ 
 ```
 Use these commands to download review analysis repositories:
 
@@ -67,11 +67,45 @@ Last snapshot of indexes is located in elasticsearch-backup (on working director
     /path/to/elastic/bin/elasticsearch
 
 Or as a daemon with command:
+
     /path/to/elastic/bin/elasticsearch -d -p pid
+    
+## Elastic-search Setup
+There is backup of elastic-search indexes in the root directory of projects with the name:
+
+    elasticsearch-backup.tar.gz
+
+Extract this file to elasticsearch-backup directory by executing this command in working directory:
+    
+    tar -zxvf elasticsearch-backup.tar.gz
+    
+Extract elastic-search installation from zipfile. In file /path/to/elastic/config/elasticsearch.yml modify shared repository parameter to:
+
+    path.repo: ["/path/to/elasticsearch-backup"]
+
+Start elastic-search, then register new repository by executing curl command:
+
+    curl --location --request GET 'localhost:9200/_snapshot/pcknot5' \
+        --header 'Content-Type: application/json' \
+        --data-raw '{
+         "type": "fs",
+         "settings": {
+         "compress" : true,
+         "location": "/path/to/elasticsearch-backup"
+         }
+        }'
+
+Finally restore last backup by executing curl command:
+    
+    curl --location --request POST 'localhost:9200/_snapshot/pcknot5/finalize/_restore' \
+        --header 'Content-Type: application/json'
+
 ## Models
 Models are available right now only in working setup directory. Base model for bipolar classification of sentiment can be downloaded from google:
 
     wget https://storage.googleapis.com/bert_models/2018_11_23/multi_cased_L-12_H-768_A-12.zip
+
+Complete set of models is available on the request.
 
 ## Working setup
 Complete project setup is located on:

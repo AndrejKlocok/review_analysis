@@ -1,19 +1,25 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
+"""
+This file contains implementation for SVM_Classifier class. This class wraps whole irrelevant model, which is
+implemented as SVM classifier. This classifier uses fasttext word embeddings from gensim library with SIF/uSIF
+weighting scheme. This class can retrain itself if provided emebedding.txt file is located in models directory.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from sklearn.svm import SVC
-from stop_words import get_stop_words
 import regex as re
 import random, pickle, argparse
 
 from gensim.models.fasttext import load_facebook_model
 from fse.models import uSIF
-from fse import IndexedList
 
 
 class SVM_Classifier:
     """
-    Class handles classification of sentence/text with trained SVM classifier which uses uSIF weighing scheme.
+    Class handles classification of sentence/text with trained SVM classifier which uses fasttext word embeddings with
+    uSIF weighing scheme.
     """
     def __init__(self, path):
         self.model = None
@@ -57,11 +63,6 @@ class SVM_Classifier:
             self.model = pickle.load(f)
 
         self.usif_model = uSIF.load(self.fse_path)
-        #lines = []
-        #with open(self.embedding_path, 'r') as file:
-        #    for line in file:
-        #        lines.append(line[:-1].split())
-        #self.embedding_indexable = IndexedList(lines)
 
     def init__usif(self):
         """
@@ -130,25 +131,16 @@ class SVM_Classifier:
         else:
             return 'normal'
 
-    def get_most_similar_sentences(self, sentence):
-        """
-        Get most similar sentence from trained sentences.
-        :param sentence:
-        :return:
-        """
-        return self.usif_model.sv.similar_by_sentence(sentence.split(), self.usif_model,
-                                               self.embedding_indexable.items)
-
 
 def main():
     parser = argparse.ArgumentParser(
         description="SVM model")
-    parser.add_argument('-usif', '--usif', help='Init usif sent2vec model', action='store_true')
+    parser.add_argument('-usif', '--usif', help='Init usif model', action='store_true')
     parser.add_argument('-cls', '--cls', help='Init SVM classifier', action='store_true')
     parser.add_argument('-sim', '--sim', help='Similarity test', action='store_true')
 
     args = vars(parser.parse_args())
-    cls = SVM_Classifier()
+    cls = SVM_Classifier('../../model/')
 
     if args['usif']:
         cls.init__usif()

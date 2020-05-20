@@ -1,3 +1,8 @@
+"""
+This file contains implementation of transformation tensorflow Bert model to pytorch representation.
+
+"""
+
 import torch
 from transformers.modeling_bert import BertConfig, BertForPreTraining, load_tf_weights_in_bert
 

@@ -1,3 +1,10 @@
+"""
+This file contains implementation of Connector class, which represents dataset of the project. This class connects to
+elastic-search node and offers API of methods for manipulation with dataset, mainly reviews and working with training
+models and experiments.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import NotFoundError
 
@@ -10,9 +17,14 @@ from operator import itemgetter
 class Connector:
     """
     Class handles requests to elastic search and provides CRUD operations for products/shops/reviews/users/clustering
-    experiments, topics and so on
+    experiments/topics.
     """
     def __init__(self, host=None, port=None):
+        """
+        Constructor initializes elastic connection with given host and port information and initializes domains mapping.
+        :param host:
+        :param port:
+        """
         # connect to localhost
         if not host:
             host = 'localhost'

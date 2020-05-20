@@ -1,3 +1,9 @@
+"""
+This file contains implementation of class Bert_model, which is wraps needed functionality of bert model for text
+evaluation.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
 import sys
 sys.path.append('../')
 from review_analysis.clasification.procesors_cls import InputExample, convert_to_features
@@ -48,7 +54,7 @@ class Bert_model:
     def get_embedding(self, sentence, strategy=None):
         """
         Get sentence embedding from last hidden state.
-        :param sentence:
+        :param sentence: text
         :param strategy:
         :return:
         """

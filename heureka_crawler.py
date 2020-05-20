@@ -1,3 +1,8 @@
+"""
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import time, sys, argparse, re
 from datetime import datetime
 from urllib.request import urlopen
@@ -218,11 +223,11 @@ class HeurekaCrawler:
             """
             Parse bs4 instance of summary and evaluate it with irrelevant model
             :param xml:
-            :return:list of sentences, list of processed sentences
+            :return: sentence, list of processed sentences
             """
             summary_text = xml.get_text().strip() if xml else ''
             if summary_text and self.filter_model.is_irrelevant(summary_text):
-                return [], []
+                return '', []
             return summary_text, _get_str_pos(self.tagger.pos_tagging(summary_text))
 
         r_d = {}

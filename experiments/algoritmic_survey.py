@@ -1,6 +1,14 @@
+"""
+This file is used for comparison of project datasets with study Sentiment Analysis of Czech Texts: An Algorithmic
+Survey. This file contain implementation for testing classifier models with best parameters. Classifiers use tf-idf
+vectorizer as word embedding model
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import argparse
 
-from sklearn.feature_extraction.text import TfidfVectorizer, TfidfTransformer, CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn import metrics
 from sklearn.pipeline import Pipeline
@@ -11,10 +19,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
-from nltk import MaxentClassifier
 
 from stop_words import get_stop_words
-import time, string
+import time
 import regex as re
 import nltk
 from time import time
@@ -40,15 +47,16 @@ class Tester:
     Class handles testing the best version of classifier for all models used in publication.
     """
     def __init__(self, czech=None):
+        """
+        Constructor initialise the range of parameters of each tested model for pipeline.
+        :param czech: czech stop words
+        """
         if not czech:
             czech = nltk.word_tokenize(' '.join(get_stop_words('cz')))
         self._classifiers = [SVC(), NuSVC(), RandomForestClassifier(), LogisticRegression(),
                              # MLPClassifier(),
-                             MultinomialNB(), ]  # MaxentClassifier()]
-        hidden_layers = ((10, 1), (20, 1), (40, 1), (60, 1), (80, 1), (100, 1),
-                         (10, 2), (20, 2), (40, 2), (60, 2), (80, 2), (100, 2),
-                         (10, 3), (20, 3), (40, 3), (60, 3), (80, 3), (100, 3),
-                         (10, 4), (20, 4), (40, 4), (60, 4), (80, 4), (100, 4))
+                             MultinomialNB(), ]
+
         self.parameters = [
             # SVC
             {
@@ -88,17 +96,6 @@ class Tester:
                 'cls__class_weight': ('balanced', None),
                 'cls__penalty': ('l1', 'l2')
             },
-            # Multi-layer Perceptron
-            # {
-            #    'vect__max_df': (0.5, 0.75, 1.0),
-            #    'vect__ngram_range': ((1, 1), (1, 2), (1, 3)),
-            #    'vect__norm': ('l1', 'l2', None),
-            #    'vect__stop_words': (czech, None),
-            #    'cls__alpha':   (0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5),
-            #    'cls__hidden_layer_sizes': hidden_layers,
-            #    'cls__activation': ('identity', 'logistic', 'tanh', 'relu'),
-            #   'cls__solver': ('lbfgs', 'sgd', 'adam')
-            # },
             # Naive Bayes
             {
                 'vect__max_df': (0.5, 0.75, 1.0),
@@ -153,12 +150,28 @@ class Tester:
 
 
 class Classifier:
+    """
+    Class is used for dataset evaluation with selected models, that range from [ SVC, NuSVC, Random Forrest,
+    Logistic regression, Naive Bayes, Multi-layer Perceptron ]. Arguments of classificaiton models and TF-IDF
+    vectorizer are the same as are used in publication.
+    """
     def __init__(self, data_x, data_y):
+        """
+        Constructor is holding training and testing dataset with initialization of stop words.
+        :param data_x:
+        :param data_y:
+        """
         self.data_x = data_x
         self.data_y = data_y
         self.czech = nltk.word_tokenize(' '.join(get_stop_words('cz')))
 
     def cls(self, vectorizer, model):
+        """
+        Method trains classifier model on trained data, then evaluate model on testing data and outputs results.
+        :param vectorizer: TF-IDF vectorizer instance
+        :param model: Classifier model instance
+        :return:
+        """
         features = vectorizer.fit_transform(self.data_x)
         labels = self.data_y
         X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.20)
@@ -172,37 +185,69 @@ class Classifier:
                 file.write(test + '\t' + pred + '\n')
 
     def cls_svm(self):
+        """
+        Perform bipolar classification of sentiment with SVM model and TF-IDF as text vectorization method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 2), norm='l2', stop_words=None, smooth_idf=False)
         model = SVC(C=100, gamma=0.01, kernel='rbf')
         self.cls(vectorizer, model)
 
     def cls_nusvm(self):
+        """
+        Perform bipolar classification of sentiment with nuSVM model and TF-IDF as text vectorization method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 2), norm='l2', stop_words=None, smooth_idf=False)
         model = NuSVC(nu=0.45, kernel='linear')
         self.cls(vectorizer, model)
 
     def cls_rf(self):
+        """
+        Perform bipolar classification of sentiment with Random forrest model and TF-IDF as text vectorization method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 1), norm=None, stop_words=self.czech, smooth_idf=False)
         model = RandomForestClassifier(max_depth=90, max_features='sqrt', n_estimators=100)
         self.cls(vectorizer, model)
 
     def cls_lr(self):
+        """
+        Perform bipolar classification of sentiment with Logistic regression model and TF-IDF as text vectorization
+        method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 2), norm='l2', stop_words=None, smooth_idf=True)
         model = LogisticRegression(C=10, class_weight=None, penalty='l2')
         self.cls(vectorizer, model)
 
     def cls_mlp(self):
+        """
+        Perform bipolar classification of sentiment with Multi-layer Perceptron model and TF-IDF as text vectorization
+        method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 2), norm='l2', stop_words=None, smooth_idf=False)
         model = MLPClassifier(alpha=0.01, hidden_layer_sizes=(40, 2), activation='relu', solver='adam')
         self.cls(vectorizer, model)
 
     def cls_nb(self):
+        """
+        Perform bipolar classification of sentiment with Naive Bayes model and TF-IDF as text vectorization method.
+        :return:
+        """
         vectorizer = TfidfVectorizer(max_df=0.5, ngram_range=(1, 2), norm='l1', stop_words=None, smooth_idf=True)
         model = MultinomialNB(alpha=0.05, fit_prior=False)
         self.cls(vectorizer, model)
 
 
-def load_sentences(path, c):
+def load_sentences(path: str, c: int):
+    """
+    Load sentences from file described in path argument and assigne them label c
+    :param path: file with sentences
+    :param c: label
+    :return: list of tuples [(sentence, label)]
+    """
     data = []
     with open(path, "r", encoding='utf-8') as file:
         for line in file:
@@ -241,6 +286,7 @@ def main():
     args = vars(parser.parse_args())
 
     start = time.time()
+    # load dataset sentences
     data_pos = load_sentences(args['inP'], 0)
     data_neg = load_sentences(args['inN'], 1)
 

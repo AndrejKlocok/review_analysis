@@ -443,6 +443,13 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
 
 
 def metrics(preds, labels, average):
+    """
+    Compute common metrics for bipolar classification by using scikit learn library.
+    :param preds: computed predictions of model
+    :param labels: actual lables for data
+    :param average: average method
+    :return: dictionary of metrics
+    """
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
     acc = (preds == labels).mean()
@@ -460,6 +467,12 @@ def metrics(preds, labels, average):
 
 
 def metrics_regression(preds, labels):
+    """
+    Compute common metrics for regression task by using scikit learn library.
+    :param preds: computed predictions of model
+    :param labels: actual lables for data
+    :return: dictionary of metrics
+    """
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
     mse = mean_squared_error(labels, preds)
@@ -470,6 +483,13 @@ def metrics_regression(preds, labels):
 
 
 def compute_metrics(task_name, preds, labels):
+    """
+    Compute actual metrics for given task defined by task_name param.
+    :param task_name: the name of the task
+    :param preds: computed predictions of model
+    :param labels: actual lables for data
+    :return: dictionary of computed metrics
+    """
     assert len(preds) == len(labels)
     if task_name == "bipolar":
         return metrics(preds, labels, 'binary')

@@ -1,3 +1,10 @@
+"""
+This file contains implementation for class LDA_model, which is wrapping up functionality of LDA model from gensim
+library. It is used in text similarity clustering to extract topics within cluster sentences and mark salient words.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 from gensim import corpora, models
 import pyLDAvis
 import pyLDAvis.gensim
