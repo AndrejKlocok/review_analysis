@@ -11,7 +11,7 @@ import random
 import pandas as pd
 import sys
 
-from elastic_connector import Connector
+from review_analysis.utils.elastic_connector import Connector
 
 sentence_type_mapper = {
     'sentence = row': 0,
