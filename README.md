@@ -1,5 +1,5 @@
 # Review analysis
-Review analysis project consists of three repositories. This repository is the main part of them. Contains the core part of thesis - crawlers, scripts to train models, clustering implementation, elastic connections.
+Review analysis project consists of three repositories. This repository is the main part of them. It contains the core part of thesis - crawlers, scripts to train models, clustering implementation, elastic connections.
 
 Repository [Review analysis-front end](https://github.com/AndrejKlocok/review_analysis-frontend) provides API for front end application,   
 Repository [Review analysis-back end](https://github.com/AndrejKlocok/review_analysis-backend) provides API for back end application,   
@@ -100,6 +100,9 @@ Finally restore last backup by executing curl command:
     curl --location --request POST 'localhost:9200/_snapshot/pcknot5/finalize/_restore' \
         --header 'Content-Type: application/json'
 
+After successful setup the domain index needs to be created. Also project users needs to be initialized to users index. To init elastic search domain indexes use command:
+
+    python3 init_elastic.py
 ## Models
 Models are available right now only in working setup directory. Base model for bipolar classification of sentiment can be downloaded from google:
 

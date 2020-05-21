@@ -35,61 +35,13 @@ class Connector:
             'port': port
         }])
         # get domain indexes from elastic
-        try:
-            res = self.es.search(index='domain', size=40)["hits"]
-        except NotFoundError:
-            # on the error init those domains
-            self.init_domains()
-            res = self.es.search(index='domain', size=40)["hits"]
-            pass
-
+        res = self.es.search(index='domain', size=40)["hits"]
         self.domain = {hit["_source"]["name"]: hit["_source"]["domain"] for hit in res['hits']}
         self.indexes = dict((v, k) for k, v in self.domain.items())
         self.max = 10000
         self.jsonExporter = JsonExporter(indent=2, sort_keys=True, ensure_ascii=False)
         self.dictExporter = DictExporter()
         self.category_to_domain = self.get_product_breadcrums(breadcrumbs=False)
-
-    def init_domains(self):
-        """
-        Initialize domains of products to ES
-        :return:
-        """
-        indexes = {
-            'Elektronika': 'elektronika',
-            'Bile zbozi': 'bile_zbozi',
-            'Dum a zahrada': 'dum_a_zahrada',
-            'Chovatelstvi': 'chovatelstvi',
-            'Auto-moto': 'auto-moto',
-            'Detske zbozi': 'detske_zbozi',
-            'Obleceni a moda': 'obleceni_a_moda',
-            'Filmy knihy hry': 'filmy_knihy_hry',
-            'Kosmetika a zdravi': 'kosmetika_a_zdravi',
-            'Sport': 'sport',
-            'Hobby': 'hobby',
-            'Jidlo a napoje': 'jidlo_a_napoje',
-            'Stavebniny': 'stavebniny',
-            'Sexualni a eroticke pomucky': 'sexualni_a_eroticke_pomucky',
-            "product": "product",
-            "shop": "shop",
-            "shop_review": "shop_review",
-            "experiment_sentence": "experiment_sentence",
-            "experiment": "experiment",
-            "experiment_cluster": "experiment_cluster",
-            "users": "users",
-            "actualize_statistic": "actualize_statistic",
-            "experiment_topic": "experiment_topic",
-        }
-
-        for k, v in indexes.items():
-            d = {
-                "name": k,
-                "domain": v
-            }
-            res = self.es.index(index="domain", doc_type='doc', body=d)
-            print(res['result'])
-
-        self.es.indices.refresh(index="domain")
 
     def index(self, index: str, doc: dict):
         """

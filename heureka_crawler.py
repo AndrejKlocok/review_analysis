@@ -1,4 +1,8 @@
 """
+This file contains implementation of the HeurekaCrawler class. Class works deeply with elasticsearch, to which it indexes
+reviews. Class implements heureka reviews crawl from txts of crawled products, actualization of reviews by crawling all
+new reviews from subcategories, shop reviews crawling and repair of products reviews with minimal review count. Class
+can use models for irrelevant review filtering (HeurekaFilter) and text rating model (HeurekaRating).
 
 Author: xkloco00@stud.fit.vutbr.cz
 """
@@ -18,10 +22,18 @@ from heureka_models.heureka_rating import HeurekaRating
 class HeurekaCrawler:
     """
     Class implements crawler, which crawls heureka with given list of starter URLS, handles indexing of products, shops
-    and reviews
+    and reviews. Class is strongly connected to elastic search client to which it indexes new reviews.
     """
     def __init__(self, connector: Connector, tagger: MorphoTagger, filter_model: HeurekaFilter,
                  rating_model: HeurekaRating):
+        """
+        Constructor initializes domain categories with all available models for classification and pos tagging, sets
+        statistics counter.
+        :param connector: Elastic search connector with API methods
+        :param tagger: POS tagging model
+        :param filter_model: SVM filtering model
+        :param rating_model: Bert regression model
+        """
         self.categories = [
             'Elektronika',
             'Bile zbozi',

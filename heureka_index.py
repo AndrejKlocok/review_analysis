@@ -1,3 +1,11 @@
+"""
+This file contains implementation Files class for handling of dumped product urls during indexing of products
+from heureka, Statistics class that holds information of crawling and HeurekaIndex class, that implements product
+indexing of heureka.
+
+Author: xkloco00@stud.fit.vutbr.cz
+"""
+
 import argparse, time, sys, json, os
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
@@ -9,10 +17,14 @@ from collections import OrderedDict
 
 class Files:
     """
-    Class handles file operations
+    Class handles file operations with output of HeurekaIndex class.
     """
 
-    def __init__(self, category):
+    def __init__(self, category: str):
+        """
+        Initialize structure of logging files.
+        :param category: the name of category
+        """
         self.category = category
         self.url_no_rev = None
         self.url_log = None
@@ -55,7 +67,7 @@ class Files:
 
     def get_crawled_categories(self) -> list:
         """
-
+        Get product category urls from product urls in stored text file.
         :return:
         """
         categories = []
@@ -79,7 +91,7 @@ class Files:
 
         try:
             os.remove(self.category + "_backup.txt")
-        except:
+        except Exception as e:
             pass
         os.rename(self.category + ".txt", self.category + "_backup.txt")
         os.rename("_" + self.category + ".txt", self.category + ".txt")
