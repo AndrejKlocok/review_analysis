@@ -11,6 +11,7 @@ import random
 import pandas as pd
 import sys
 
+sys.path.append('../../')
 from review_analysis.utils.elastic_connector import Connector
 
 sentence_type_mapper = {
@@ -168,7 +169,6 @@ class Generator:
 
         if shuffle:
             random.shuffle(sentences)
-
         return sentences
 
     def __get_sentence(self, s: str, sentences: list, regex=r'[,.]'):
@@ -601,7 +601,7 @@ def main():
     parser.add_argument('-bi', '--bipolar', help='Generate dataset for sentiment classification +-',
                         action='store_true', default=False)
     parser.add_argument('-rat', '--rating', help='Generate dataset for RATING classes according to review',
-                        default=-1, type=int)
+                        action='store_true')
 
     parser.add_argument('-b', '--bert', help='Generate also data for Bert model (train.tsv, test.tsv, dev.tsv)',
                         action='store_true')
@@ -628,11 +628,13 @@ def main():
     # Elastic
     con = Connector()
 
-    if args['sentences'] > 3:
+    if args['sentence_type'] > 3:
         print('--sentences out of scope, see --help', file=sys.stderr)
         sys.exit(1)
 
     start = time.time()
+    args['categories'] = [args['category']]
+
     if args['embeddings']:
         gen = Generator(category, con, args)
         task_emb(gen)
