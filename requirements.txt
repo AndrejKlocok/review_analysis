@@ -101,7 +101,7 @@ tqdm==4.42.0
 transformers==2.3.0
 ufal.morphodita==1.9.2.3
 Unidecode==1.1.1
-urllib3==1.25.8
+urllib3==1.26.5
 wcwidth==0.1.8
 Werkzeug==1.0.1
 wordcloud==1.6.0
