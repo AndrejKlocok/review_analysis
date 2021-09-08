@@ -22,7 +22,7 @@ Flask==1.1.2
 Flask-Cors==3.0.8
 Flask-Login==0.5.0
 flask-restplus==0.13.0
-flask-restx==0.2.0
+flask-restx==0.5.1
 fse==0.1.15
 funcy==1.14
 future==0.18.2
